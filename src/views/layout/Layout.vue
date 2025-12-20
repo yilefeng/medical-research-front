@@ -17,13 +17,13 @@
           <el-icon><DataAnalysis /></el-icon>
           <template #title>科研数据管理</template>
         </el-menu-item>
-        <el-menu-item index="/home/analysis/report">
+        <el-menu-item index="/home/analysis/manage">
           <el-icon><Files /></el-icon>
-          <template #title>分析报告管理</template>
+          <template #title>统计分析</template>
         </el-menu-item>
-        <el-menu-item index="/home/data/source">
-          <el-icon><FolderOpened /></el-icon>
-          <template #title>数据源管理</template>
+        <el-menu-item index="/home/report/manage">
+          <el-icon><Files /></el-icon>
+          <template #title>报告管理</template>
         </el-menu-item>
         <el-sub-menu index="system">
           <template #title>

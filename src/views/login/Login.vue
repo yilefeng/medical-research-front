@@ -1,7 +1,7 @@
 <template>
   <div class="login-container">
     <el-card class="login-card">
-      <div class="login-title">医疗科研管理系统</div>
+      <div class="login-title">深影科研平台</div>
       <el-form
           :model="loginForm"
           :rules="loginRules"

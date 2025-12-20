@@ -7,6 +7,8 @@ import Login from '@/views/login/Login.vue'
 import Layout from '@/views/layout/Layout.vue'
 import ExperimentPlan from '@/views/experiment/ExperimentPlan.vue'
 import ResearchData from '@/views/research/ResearchData.vue'
+import ReportManage from '@/views/report/ReportManage.vue'
+import AnalysisManage from '@/views/report/AnalysisManage.vue'
 import AnalysisReport from '@/views/report/AnalysisReport.vue'
 import DataSource from '@/views/dataSource/DataSource.vue'
 import SysUser from '@/views/system/SysUser.vue'
@@ -31,8 +33,9 @@ const routes = [
         children: [
             { path: 'experiment/plan', name: 'ExperimentPlan', component: ExperimentPlan, meta: { title: '实验方案管理' } },
             { path: 'research/data', name: 'ResearchData', component: ResearchData, meta: { title: '科研数据管理' } },
-            { path: 'analysis/report', name: 'AnalysisReport', component: AnalysisReport, meta: { title: '分析报告管理' } },
-            { path: 'data/source', name: 'DataSource', component: DataSource, meta: { title: '数据源管理' } },
+            { path: 'analysis/manage', name: 'AnalysisManage', component: AnalysisManage, meta: { title: '统计分析' } },
+            { path: 'report/manage', name: 'ReportManage', component: ReportManage, meta: { title: '报告管理' } },
+            // { path: 'data/source', name: 'DataSource', component: DataSource, meta: { title: '数据源管理' } },
             { path: 'sys/user', name: 'SysUser', component: SysUser, meta: { title: '用户管理' } },
             { path: 'sys/role', name: 'SysRole', component: SysRole, meta: { title: '角色管理' } },
             { path: 'sys/oper/log', name: 'SysOperLog', component: SysOperLog, meta: { title: '操作日志' } }
@@ -50,9 +53,9 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
     // 设置页面标题
     if (to.meta.title) {
-        document.title = to.meta.title + ' - 医疗科研管理系统'
+        document.title = to.meta.title + ' - 深影科研平台'
     } else {
-        document.title = '医疗科研管理系统'
+        document.title = '深影科研平台'
     }
 
     // 登录验证

@@ -1,479 +1,306 @@
 <template>
-  <div class="research-data-container">
+  <div class="data-manage-container">
     <el-card>
-      <!-- 查询表单 -->
       <div class="card-header">
-        <el-input
-            v-model="queryParams.experimentNo"
-            placeholder="请输入实验编号"
-            style="width: 200px; margin-right: 10px;"
-            clearable
-        ></el-input>
-        <el-input
-            v-model="queryParams.modelName"
-            placeholder="请输入模型名称"
-            style="width: 200px; margin-right: 10px;"
-            clearable
-        ></el-input>
-        <el-input
-            v-model="queryParams.dataset"
-            placeholder="请输入数据集名称"
-            style="width: 200px; margin-right: 10px;"
-            clearable
-        ></el-input>
-        <el-button type="primary" @click="getDataList()">查询</el-button>
-        <el-button @click="resetQuery()">重置</el-button>
-        <el-button type="success" @click="openAddDialog()" style="margin-left: 10px;">新增</el-button>
-        <el-upload
-            class="upload-demo"
-            :action="importUrl"
-            :headers="uploadHeaders"
-            :on-success="handleImportSuccess"
-            :before-upload="beforeUpload"
-            style="display: inline-block; margin-left: 10px;"
-        >
-          <el-button type="warning">Excel导入</el-button>
-        </el-upload>
-        <el-button type="info" @click="handleExport()" style="margin-left: 10px;">Excel导出</el-button>
+        <el-form :inline="true" :model="searchForm" class="search-form">
+          <el-form-item label="关联实验">
+            <el-select v-model="searchForm.experimentId" placeholder="请选择实验" clearable>
+              <el-option
+                  v-for="item in experimentList"
+                  :key="item.id"
+                  :label="item.planName"
+                  :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="getUserDataList">查询</el-button>
+            <el-button @click="resetSearch">重置</el-button>
+          </el-form-item>
+        </el-form>
+        <div class="upload-btn">
+          <el-upload
+              class="upload-demo"
+              action="#",
+              :before-upload="beforeUpload"
+              :on-success="uploadSuccess"
+              :on-error="uploadError"
+              :auto-upload="false"
+              ref="uploadRef"
+          >
+            <el-button type="success" @click="handleUpload">上传CSV数据</el-button>
+          </el-upload>
+          <el-button type="danger" @click="batchDelete" :disabled="selectedIds.length === 0">批量删除</el-button>
+        </div>
       </div>
 
-      <!-- 表格 -->
-      <el-table :data="tableData" border stripe style="width: 100%">
-        <el-table-column prop="id" label="ID" width="80"></el-table-column>
-        <el-table-column prop="experimentNo" label="实验编号" width="150"></el-table-column>
-        <el-table-column prop="modelName" label="模型名称" width="120"></el-table-column>
-        <el-table-column prop="dataset" label="数据集" width="150"></el-table-column>
-        <el-table-column prop="accuracy" label="准确率" width="100">
+      <el-table :data="dataList" border @selection-change="handleSelectionChange" style="margin-top: 20px;">
+        <el-table-column type="selection" width="55" />
+        <el-table-column prop="id" label="数据ID" width="80" />
+        <el-table-column prop="experimentId" label="实验ID" width="80" />
+        <el-table-column prop="trueLabel" label="真实标签" width="120">
           <template #default="scope">
-            {{ scope.row.accuracy ? scope.row.accuracy.toFixed(4) : '-' }}
+            {{ scope.row.trueLabel === 1 ? '阳性（恶性）' : '阴性（良性）' }}
           </template>
         </el-table-column>
-        <el-table-column prop="precision" label="精确率" width="100">
+        <el-table-column prop="model1Score" label="模型1评分" width="120" />
+        <el-table-column prop="model2Score" label="模型2评分" width="120" />
+        <el-table-column prop="dataSource" label="数据来源" width="150" />
+        <el-table-column prop="createTime" label="创建时间" width="200" />
+        <el-table-column label="操作" width="120">
           <template #default="scope">
-            {{ scope.row.precision ? scope.row.precision.toFixed(4) : '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="recall" label="召回率" width="100">
-          <template #default="scope">
-            {{ scope.row.recall ? scope.row.recall.toFixed(4) : '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="f1Score" label="F1分数" width="100">
-          <template #default="scope">
-            {{ scope.row.f1Score ? scope.row.f1Score.toFixed(4) : '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180"></el-table-column>
-        <el-table-column label="操作" width="180">
-          <template #default="scope">
-            <el-button type="primary" size="small" @click="openEditDialog(scope.row)">编辑</el-button>
-            <el-button type="danger" size="small" @click="deleteData(scope.row.id)">删除</el-button>
-            <el-button type="info" size="small" @click="viewChart(scope.row)">可视化</el-button>
+            <el-button type="text" @click="deleteSingle(scope.row.id)" style="color: #f56c6c;">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
 
-      <!-- 分页 -->
       <el-pagination
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
-          :current-page="pageNum"
-          :page-sizes="[10, 20, 50, 100]"
+          :current-page="currentPage"
+          :page-sizes="[10, 20, 50]"
           :page-size="pageSize"
           layout="total, sizes, prev, pager, next, jumper"
           :total="total"
           style="margin-top: 20px; text-align: right;"
-      ></el-pagination>
+      />
     </el-card>
 
-    <!-- 新增/编辑对话框 -->
-    <el-dialog
-        v-model="dialogVisible"
-        :title="dialogTitle"
-        width="600px"
-        @close="resetForm()"
-    >
-      <el-form :model="formData" :rules="formRules" ref="formRef" label-width="100px">
-        <el-form-item label="实验编号" prop="experimentNo">
-          <el-input v-model="formData.experimentNo" placeholder="请输入实验编号"></el-input>
+    <!-- 上传数据弹窗 -->
+    <el-dialog title="上传CSV科研数据" v-model="uploadDialogVisible" width="500px">
+      <el-form :model="uploadForm" label-width="100px" ref="uploadFormRef">
+        <el-form-item label="关联实验" prop="experimentId" required>
+          <el-select v-model="uploadForm.experimentId" placeholder="请选择实验" clearable>
+            <el-option
+                v-for="item in experimentList"
+                :key="item.id"
+                :label="item.planName"
+                :value="item.id"
+            />
+          </el-select>
         </el-form-item>
-        <el-form-item label="模型名称" prop="modelName">
-          <el-input v-model="formData.modelName" placeholder="请输入模型名称"></el-input>
-        </el-form-item>
-        <el-form-item label="数据集" prop="dataset">
-          <el-input v-model="formData.dataset" placeholder="请输入数据集名称"></el-input>
-        </el-form-item>
-        <el-form-item label="准确率" prop="accuracy">
-          <el-input
-              v-model="formData.accuracy"
-              type="number"
-              step="0.0001"
-              min="0"
-              max="1"
-              placeholder="请输入准确率（0-1）"
-          ></el-input>
-        </el-form-item>
-        <el-form-item label="精确率" prop="precision">
-          <el-input
-              v-model="formData.precision"
-              type="number"
-              step="0.0001"
-              min="0"
-              max="1"
-              placeholder="请输入精确率（0-1）"
-          ></el-input>
-        </el-form-item>
-        <el-form-item label="召回率" prop="recall">
-          <el-input
-              v-model="formData.recall"
-              type="number"
-              step="0.0001"
-              min="0"
-              max="1"
-              placeholder="请输入召回率（0-1）"
-          ></el-input>
-        </el-form-item>
-        <el-form-item label="F1分数" prop="f1Score">
-          <el-input
-              v-model="formData.f1Score"
-              type="number"
-              step="0.0001"
-              min="0"
-              max="1"
-              placeholder="请输入F1分数（0-1）"
-          ></el-input>
+        <el-form-item label="CSV文件" prop="file" required>
+          <el-upload
+              class="upload-demo"
+              :auto-upload="false"
+              :on-change="handleFileChange"
+              :file-list="fileList"
+              accept=".csv"
+              ref="fileUploadRef"
+          >
+            <el-button type="primary">选择文件</el-button>
+            <div slot="tip" class="el-upload__tip">请上传后缀为.csv的文件，大小不超过10MB</div>
+          </el-upload>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitForm()">确定</el-button>
+        <div class="dialog-footer">
+          <el-button @click="uploadDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitUpload">确认上传</el-button>
+        </div>
       </template>
-    </el-dialog>
-
-    <!-- 可视化图表对话框 -->
-    <el-dialog v-model="chartDialogVisible" title="模型性能可视化" width="800px" height="600px">
-      <div ref="chartRef" class="chart-container"></div>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted,nextTick } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import * as echarts from 'echarts'
-import { getToken } from '@/utils/auth'
-import {
-  getDataPage, createData, updateData, deleteData as deleteDataApi,
-  getDataById, importResearchData, exportResearchData,
-  getVisualData
-} from '@/api/researchData'
+import request from '@/utils/request'
 
-// 查询参数
-const queryParams = ref({
-  experimentNo: '',
-  modelName: '',
-  dataset: ''
+
+// 搜索表单
+const searchForm = reactive({
+  experimentId: ''
 })
-
-// 表格数据
-const tableData = ref([])
-const pageNum = ref(1)
+// 实验列表
+const experimentList = ref([])
+// 数据列表
+const dataList = ref([])
+const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
-
-// 对话框相关
-const dialogVisible = ref(false)
-const chartDialogVisible = ref(false)
-const dialogTitle = ref('新增科研数据')
-const isEdit = ref(false)
-const formRef = ref(null)
-
-// 表单数据
-const formData = reactive({
-  id: '',
-  experimentNo: '',
-  modelName: '',
-  dataset: '',
-  accuracy: '',
-  precision: '',
-  recall: '',
-  f1Score: ''
-})
-
+// 批量选择
+const selectedIds = ref([])
 // 上传相关
-const importUrl = ref('/api/research/data/import')
-const uploadHeaders = ref({
-  token: getToken()
+const uploadDialogVisible = ref(false)
+const uploadForm = reactive({
+  experimentId: ''
 })
+const fileList = ref([])
+const uploadFormRef = ref(null)
+const fileUploadRef = ref(null)
+const uploadRef = ref(null)
+const selectedFile = ref(null)
 
-// 图表相关
-const chartRef = ref(null)
-let chartInstance = null
-
-// 表单校验规则
-const formRules = ref({
-  experimentNo: [{ required: true, message: '请输入实验编号', trigger: 'blur' }],
-  modelName: [{ required: true, message: '请输入模型名称', trigger: 'blur' }],
-  dataset: [{ required: true, message: '请输入数据集名称', trigger: 'blur' }],
-  accuracy: [
-    { required: true, message: '请输入准确率', trigger: 'blur' },
-    { type: 'number', min: 0, max: 1, message: '准确率必须在0-1之间', trigger: 'blur', transform: value => parseFloat(value) }
-  ],
-  precision: [
-    { required: true, message: '请输入精确率', trigger: 'blur' },
-    { type: 'number', min: 0, max: 1, message: '精确率必须在0-1之间', trigger: 'blur', transform: value => parseFloat(value) }
-  ],
-  recall: [
-    { required: true, message: '请输入召回率', trigger: 'blur' },
-    { type: 'number', min: 0, max: 1, message: '召回率必须在0-1之间', trigger: 'blur', transform: value => parseFloat(value)}
-  ],
-  f1Score: [
-    { required: true, message: '请输入F1分数', trigger: 'blur' },
-    { type: 'number', min: 0, max: 1, message: 'F1分数必须在0-1之间', trigger: 'blur', transform: value => parseFloat(value) }
-  ]
-})
-
-// 页面加载时获取列表
-onMounted(() => {
-  getDataList()
-})
-
-// 销毁图表实例
-onUnmounted(() => {
-  if (chartInstance) {
-    chartInstance.dispose()
-  }
-})
-
-// 获取科研数据列表
-const getDataList = async () => {
+// 获取实验列表
+const getExperimentList = async () => {
   try {
-    const res = await getDataPage({
-      pageNum: pageNum.value,
-      pageSize: pageSize.value,
-      ...queryParams.value
+    const res = await request.get('/experiment/list',{
+      params: {
+        pageNum: 1,
+        pageSize: 10000
+      }
     })
-    tableData.value = res.data.records
+    experimentList.value = res.data.records
+  } catch (e) {
+    ElMessage.error('获取实验列表失败：' + e.msg)
+  }
+}
+
+// 获取数据列表
+const getUserDataList = async () => {
+  try {
+    const res = await request.get('/data/list', {
+      params: {
+        experimentId: searchForm.experimentId,
+        pageNum: currentPage.value,
+        pageSize: pageSize.value
+      }
+    })
+    dataList.value = res.data.records
     total.value = res.data.total
-  } catch (error) {
-    console.error('获取列表失败:', error)
+  } catch (e) {
+    ElMessage.error('获取数据列表失败：' + e.msg)
   }
 }
 
-// 重置查询条件
-const resetQuery = () => {
-  queryParams.value = {
-    experimentNo: '',
-    modelName: '',
-    dataset: ''
-  }
-  getDataList()
-}
-
-// 分页大小改变
+// 分页变化
 const handleSizeChange = (val) => {
   pageSize.value = val
-  getDataList()
+  getUserDataList()
 }
-
-// 当前页改变
 const handleCurrentChange = (val) => {
-  pageNum.value = val
-  getDataList()
+  currentPage.value = val
+  getUserDataList()
 }
 
-// 打开新增对话框
-const openAddDialog = () => {
-  dialogTitle.value = '新增科研数据'
-  isEdit.value = false
-  resetForm()
-  dialogVisible.value = true
+// 选择数据变化
+const handleSelectionChange = (val) => {
+  selectedIds.value = val.map(item => item.id)
 }
 
-// 打开编辑对话框
-const openEditDialog = async (row) => {
-  dialogTitle.value = '编辑科研数据'
-  isEdit.value = true
-  resetForm()
-
-  // 获取详情
-  const res = await getDataById(row.id)
-  Object.assign(formData, res.data)
-  dialogVisible.value = true
+// 重置搜索
+const resetSearch = () => {
+  searchForm.experimentId = ''
+  getUserDataList()
 }
 
-// 重置表单
-const resetForm = () => {
-  if (formRef.value) {
-    formRef.value.resetFields()
-  }
-  Object.assign(formData, {
-    id: '',
-    experimentNo: '',
-    modelName: '',
-    dataset: '',
-    accuracy: '',
-    precision: '',
-    recall: '',
-    f1Score: ''
-  })
-}
-
-// 提交表单
-const submitForm = async () => {
+// 单个删除
+const deleteSingle = async (id) => {
   try {
-    await formRef.value.validate()
-    let res
-    if (isEdit.value) {
-      res = await updateData(formData.id, formData)
-    } else {
-      res = await createData(formData)
-    }
-    ElMessage.success(res.msg)
-    dialogVisible.value = false
-    getDataList()
-  } catch (error) {
-    console.error('提交失败:', error)
-  }
-}
-
-// 删除科研数据
-const deleteData = (id) => {
-  ElMessageBox.confirm(
-      '确定要删除该科研数据吗？',
-      '提示',
-      {
-        type: 'warning'
-      }
-  ).then(async () => {
-    const res = await deleteDataApi(id)
-    ElMessage.success(res.msg)
-    getDataList()
-  }).catch(() => {
-    ElMessage.info('已取消删除')
-  })
-}
-
-// 文件上传前校验
-const beforeUpload = (file) => {
-  const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-      file.type === 'application/vnd.ms-excel'
-  if (!isExcel) {
-    ElMessage.error('只能上传Excel文件！')
-    return false
-  }
-  const isLt10M = file.size / 1024 / 1024 < 10
-  if (!isLt10M) {
-    ElMessage.error('文件大小不能超过10MB！')
-    return false
-  }
-  return true
-}
-
-// 导入成功回调
-const handleImportSuccess = (res) => {
-  ElMessage.success('数据导入成功')
-  getDataList()
-}
-
-// 导出Excel
-const handleExport = async () => {
-  try {
-    const res = await exportResearchData({
-      experimentNo: queryParams.value.experimentNo
+    await ElMessageBox.confirm('确定要删除该条数据吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
     })
-    // 创建下载链接
-    const blob = new Blob([res], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `科研数据_${new Date().getTime()}.xlsx`
-    link.click()
-    window.URL.revokeObjectURL(url)
-    ElMessage.success('导出成功')
-  } catch (error) {
-    console.error('导出失败:', error)
+    const res = await request.delete(`/data/${id}`)
+    ElMessage.success(res.msg)
+    getUserDataList()
+  } catch (e) {
+    if (e.msg !== 'cancel') {
+      ElMessage.error('删除失败：' + e.msg)
+    }
   }
 }
 
-// 查看可视化图表
-const viewChart = async (row) => {
-  chartDialogVisible.value = true
+// 批量删除
+const batchDelete = async () => {
+  try {
+    await ElMessageBox.confirm('确定要批量删除选中的数据吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    const res = await request.delete(`/data/batch?ids=${selectedIds.value.join(',')}`)
+    ElMessage.success(res.msg)
+    getUserDataList()
+  } catch (e) {
+    if (e.msg !== 'cancel') {
+      ElMessage.error('批量删除失败：' + e.msg)
+    }
+  }
+}
 
-  // 获取可视化数据
-  const res = await getVisualData(row.experimentNo)
+// 打开上传弹窗
+const handleUpload = () => {
+  uploadDialogVisible.value = true
+  uploadForm.experimentId = ''
+  fileList.value = []
+  selectedFile.value = null
+}
 
-  // 初始化图表
-  if (!chartInstance) {
-    chartInstance = echarts.init(chartRef.value)
+// 文件变化
+const handleFileChange = (file) => {
+  fileList.value = [file]
+  selectedFile.value = file.raw
+}
+
+// 提交上传
+const submitUpload = async () => {
+  if (!uploadForm.experimentId) {
+    ElMessage.warning('请选择关联实验')
+    return
+  }
+  if (!selectedFile.value) {
+    ElMessage.warning('请选择CSV文件')
+    return
   }
 
-  // 图表配置
-  const option = {
-    title: {
-      text: `${row.experimentNo} 模型性能对比`,
-      left: 'center'
-    },
-    tooltip: {
-      trigger: 'axis'
-    },
-    legend: {
-      data: ['准确率', '精确率', '召回率', 'F1分数'],
-      bottom: 0
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '15%',
-      top: '15%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: res.data.map(item => item.modelName)
-    },
-    yAxis: {
-      type: 'value',
-      min: 0,
-      max: 1,
-      interval: 0.1
-    },
-    series: [
-      {
-        name: '准确率',
-        type: 'bar',
-        data: res.data.map(item => Number(item.accuracy))
-      },
-      {
-        name: '精确率',
-        type: 'bar',
-        data: res.data.map(item => Number(item.precision))
-      },
-      {
-        name: '召回率',
-        type: 'bar',
-        data: res.data.map(item => Number(item.recall))
-      },
-      {
-        name: 'F1分数',
-        type: 'bar',
-        data: res.data.map(item => Number(item.f1Score))
+  const formData = new FormData()
+  formData.append('experimentId', uploadForm.experimentId)
+  formData.append('file', selectedFile.value)
+
+  try {
+    const res = await request.post('/data/import', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
       }
-    ]
+    })
+    ElMessage.success(res.msg)
+    uploadDialogVisible.value = false
+    getUserDataList()
+  } catch (e) {
+    ElMessage.error('上传失败：' + e.msg)
   }
-
-  chartInstance.setOption(option)
-
-  // 自适应窗口大小
-  window.addEventListener('resize', () => {
-    chartInstance.resize()
-  })
 }
 
+// 上传前置操作（弃用，改用弹窗上传）
+const beforeUpload = (file) => {
+  uploadDialogVisible.value = true
+  return false
+}
+const uploadSuccess = (res) => {
+  ElMessage.success('上传成功')
+}
+const uploadError = (err) => {
+  ElMessage.error('上传失败')
+}
+
+// 初始化
+onMounted(() => {
+  getExperimentList()
+  getUserDataList()
+})
 </script>
 
 <style scoped>
-.research-data-container {
-  padding: 10px;
+.data-manage-container {
+  padding: 20px;
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.search-form {
+  flex: 1;
+}
+.upload-btn {
+  flex: 1;
+  text-align: right;
+}
+.dialog-footer {
+  text-align: right;
 }
 </style>

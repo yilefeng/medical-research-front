@@ -1,376 +1,416 @@
 <template>
-  <div class="experiment-plan-container">
+  <div class="experiment-manage-container">
+    <!-- 核心卡片 -->
     <el-card>
-      <!-- 查询表单 -->
+      <!-- 卡片头部：搜索 + 新增按钮 -->
       <div class="card-header">
-        <el-input
-            v-model="queryParams.planName"
-            placeholder="请输入实验方案名称"
-            style="width: 200px; margin-right: 10px;"
-            clearable
-        ></el-input>
-        <el-input
-            v-model="queryParams.experimentNo"
-            placeholder="请输入实验编号"
-            style="width: 200px; margin-right: 10px;"
-            clearable
-        ></el-input>
-        <el-select
-            v-model="queryParams.status"
-            placeholder="请选择状态"
-            style="width: 150px; margin-right: 10px;"
-            clearable
-        >
-          <el-option label="未开始" value="0"></el-option>
-          <el-option label="进行中" value="1"></el-option>
-          <el-option label="已完成" value="2"></el-option>
-          <el-option label="已终止" value="3"></el-option>
-        </el-select>
-        <el-button type="primary" @click="getPlanList()">查询</el-button>
-        <el-button @click="resetQuery()">重置</el-button>
-        <el-button type="success" @click="openAddDialog()" style="margin-left: 10px;">新增</el-button>
+        <el-form :inline="true" :model="searchForm" class="search-form">
+          <el-form-item label="实验名称">
+            <el-input
+                v-model="searchForm.planName"
+                placeholder="请输入实验名称模糊查询"
+                clearable
+                style="width: 300px;"
+            />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="getExperimentList">查询</el-button>
+            <el-button @click="resetSearch">重置</el-button>
+          </el-form-item>
+        </el-form>
+        <el-button type="primary" icon="Plus" @click="openAddDialog">新增实验方案</el-button>
       </div>
 
-      <!-- 表格 -->
-      <el-table :data="tableData" border stripe style="width: 100%">
-        <el-table-column prop="id" label="ID" width="80"></el-table-column>
-        <el-table-column prop="planName" label="实验方案名称" min-width="200"></el-table-column>
-        <el-table-column prop="experimentNo" label="实验编号" width="150"></el-table-column>
-        <el-table-column prop="principal" label="负责人" width="100"></el-table-column>
-        <el-table-column prop="dept" label="所属科室" width="120"></el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+      <!-- 实验方案表格 -->
+      <el-table
+          :data="experimentList"
+          border
+          stripe
+          @selection-change="handleSelectionChange"
+          style="margin-top: 20px; width: 100%;"
+      >
+        <el-table-column type="selection" width="55" />
+        <el-table-column prop="id" label="实验ID" width="80" align="center" />
+        <el-table-column prop="planName" label="实验名称" min-width="200" align="center" />
+        <el-table-column prop="researchPurpose" label="研究目的" min-width="300" align="center">
           <template #default="scope">
-            <el-tag :type="getStatusTagType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
+            <div class="text-ellipsis" :title="scope.row.researchPurpose">
+              {{ scope.row.researchPurpose || '-' }}
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="创建时间" width="180"></el-table-column>
-        <el-table-column label="操作" width="200">
+        <el-table-column prop="modelInfo" label="模型信息" min-width="200" align="center" />
+        <el-table-column prop="createTime" label="创建时间" width="200" align="center" />
+        <el-table-column prop="updateTime" label="更新时间" width="200" align="center" />
+        <el-table-column label="操作" width="180" align="center">
           <template #default="scope">
-            <el-button type="primary" size="small" @click="openEditDialog(scope.row)">编辑</el-button>
-            <el-button type="warning" size="small" @click="updateStatus(scope.row)">改状态</el-button>
-            <el-button type="danger" size="small" @click="deletePlan(scope.row.id)">删除</el-button>
+            <el-button
+                type="primary"
+                size="small"
+                icon="Edit"
+                @click="openEditDialog(scope.row)"
+                circle
+            />
+            <el-button
+                type="danger"
+                size="small"
+                icon="Delete"
+                @click="deleteExperiment(scope.row.id)"
+                circle
+            />
+            <el-button
+                type="info"
+                size="small"
+                icon="View"
+                @click="viewExperimentDetail(scope.row)"
+                circle
+            />
           </template>
         </el-table-column>
       </el-table>
 
-      <!-- 分页 -->
+      <!-- 分页组件 -->
       <el-pagination
           @size-change="handleSizeChange"
           @current-change="handleCurrentChange"
-          :current-page="pageNum"
+          :current-page="currentPage"
           :page-sizes="[10, 20, 50, 100]"
           :page-size="pageSize"
           layout="total, sizes, prev, pager, next, jumper"
           :total="total"
           style="margin-top: 20px; text-align: right;"
-      ></el-pagination>
+      />
     </el-card>
 
-    <!-- 新增/编辑对话框 -->
+    <!-- 新增/编辑弹窗 -->
     <el-dialog
+        :title="isEdit ? '编辑实验方案' : '新增实验方案'"
         v-model="dialogVisible"
-        :title="dialogTitle"
         width="600px"
-        @close="resetForm()"
+        destroy-on-close
     >
-      <el-form :model="formData" :rules="formRules" ref="formRef" label-width="100px">
-        <el-form-item label="实验方案名称" prop="planName">
-          <el-input v-model="formData.planName" placeholder="请输入实验方案名称"></el-input>
-        </el-form-item>
-        <el-form-item label="实验编号" prop="experimentNo">
-          <el-input v-model="formData.experimentNo" placeholder="请输入实验编号（如EXP2025001）"></el-input>
-        </el-form-item>
-        <el-form-item label="实验目的" prop="purpose">
+      <el-form
+          :model="experimentForm"
+          :rules="formRules"
+          ref="formRef"
+          label-width="100px"
+          style="margin-top: 20px;"
+      >
+        <el-form-item label="实验名称" prop="planName">
           <el-input
-              v-model="formData.purpose"
+              v-model="experimentForm.planName"
+              placeholder="请输入实验方案名称"
+              maxlength="255"
+              show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="研究目的" prop="researchPurpose">
+          <el-input
+              v-model="experimentForm.researchPurpose"
               type="textarea"
-              :rows="3"
-              placeholder="请输入实验目的"
-          ></el-input>
+              rows="4"
+              placeholder="请输入实验研究目的（如：对比两种模型在肿瘤诊断中的准确率）"
+              maxlength="1000"
+              show-word-limit
+          />
         </el-form-item>
-        <el-form-item label="负责人" prop="principal">
-          <el-input v-model="formData.principal" placeholder="请输入实验负责人"></el-input>
+        <el-form-item label="模型信息" prop="modelInfo">
+          <el-input
+              v-model="experimentForm.modelInfo"
+              placeholder="请输入模型信息（如：模型1=ResNet50，模型2=Vision Transformer）"
+              maxlength="500"
+              show-word-limit
+          />
         </el-form-item>
-        <el-form-item label="所属科室" prop="dept">
-          <el-input v-model="formData.dept" placeholder="请输入所属科室"></el-input>
-        </el-form-item>
-        <el-form-item label="开始时间" prop="startTime">
-          <el-date-picker
-              v-model="formData.startTime"
-              type="datetime"
-              placeholder="请选择开始时间"
-              style="width: 100%;"
-          ></el-date-picker>
-        </el-form-item>
-        <el-form-item label="结束时间" prop="endTime">
-          <el-date-picker
-              v-model="formData.endTime"
-              type="datetime"
-              placeholder="请选择结束时间"
-              style="width: 100%;"
-          ></el-date-picker>
-        </el-form-item>
-        <el-form-item label="状态" prop="status" v-if="isEdit">
-          <el-select v-model="formData.status" placeholder="请选择状态">
-            <el-option label="未开始" value="0"></el-option>
-            <el-option label="进行中" value="1"></el-option>
-            <el-option label="已完成" value="2"></el-option>
-            <el-option label="已终止" value="3"></el-option>
-          </el-select>
+        <el-form-item label="实验描述" prop="experimentDesc">
+          <el-input
+              v-model="experimentForm.experimentDesc"
+              type="textarea"
+              rows="3"
+              placeholder="请输入实验补充描述（可选）"
+              maxlength="2000"
+              show-word-limit
+          />
         </el-form-item>
       </el-form>
+
+      <!-- 弹窗底部按钮 -->
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitForm()">确定</el-button>
+        <div class="dialog-footer">
+          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitForm">确认</el-button>
+        </div>
       </template>
     </el-dialog>
 
-    <!-- 状态修改对话框 -->
-    <el-dialog v-model="statusDialogVisible" title="修改实验状态" width="400px">
-      <el-form :model="statusForm" label-width="80px">
-        <el-form-item label="当前状态">
-          <el-tag :type="getStatusTagType(statusForm.oldStatus)">{{ getStatusText(statusForm.oldStatus) }}</el-tag>
-        </el-form-item>
-        <el-form-item label="目标状态" prop="newStatus">
-          <el-select v-model="statusForm.newStatus" placeholder="请选择目标状态">
-            <el-option label="未开始" value="0"></el-option>
-            <el-option label="进行中" value="1"></el-option>
-            <el-option label="已完成" value="2"></el-option>
-            <el-option label="已终止" value="3"></el-option>
-          </el-select>
-        </el-form-item>
-      </el-form>
+    <!-- 详情查看弹窗 -->
+    <el-dialog title="实验方案详情" v-model="detailVisible" width="600px" destroy-on-close>
+      <el-descriptions :column="1" border style="margin-top: 20px;">
+        <el-descriptions-item label="实验ID">
+          {{ detailForm.id || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="实验名称">
+          {{ detailForm.planName || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="研究目的">
+          <div style="white-space: pre-wrap; word-break: break-all;">
+            {{ detailForm.researchPurpose || '-' }}
+          </div>
+        </el-descriptions-item>
+        <el-descriptions-item label="模型信息">
+          {{ detailForm.modelInfo || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="实验描述">
+          <div style="white-space: pre-wrap; word-break: break-all;">
+            {{ detailForm.experimentDesc || '-' }}
+          </div>
+        </el-descriptions-item>
+        <el-descriptions-item label="创建时间">
+          {{ detailForm.createTime || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="更新时间">
+          {{ detailForm.updateTime || '-' }}
+        </el-descriptions-item>
+      </el-descriptions>
       <template #footer>
-        <el-button @click="statusDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmUpdateStatus()">确定</el-button>
+        <el-button type="primary" @click="detailVisible = false">关闭</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  getPlanPage, createPlan, updatePlan,
-  deletePlan as deletePlanApi, updatePlanStatus, getPlanById
-} from '@/api/experimentPlan'
+import request from '@/utils/request'
 
-// 查询参数
-const queryParams = ref({
-  planName: '',
-  experimentNo: '',
-  status: ''
+// 搜索表单
+const searchForm = reactive({
+  planName: ''
 })
 
 // 表格数据
-const tableData = ref([])
-const pageNum = ref(1)
+const experimentList = ref([])
+const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
+const selectedIds = ref([])
 
-// 对话框相关
+// 弹窗相关
 const dialogVisible = ref(false)
-const statusDialogVisible = ref(false)
-const dialogTitle = ref('新增实验方案')
+const detailVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref(null)
 
-// 表单数据
-const formData = reactive({
+// 实验表单
+const experimentForm = reactive({
   id: '',
   planName: '',
-  experimentNo: '',
-  purpose: '',
-  principal: '',
-  dept: '',
-  startTime: '',
-  endTime: '',
-  status: '0'
+  researchPurpose: '',
+  modelInfo: '',
+  experimentDesc: ''
 })
 
-// 状态修改表单
-const statusForm = reactive({
+// 详情表单
+const detailForm = reactive({
   id: '',
-  oldStatus: '',
-  newStatus: ''
+  planName: '',
+  researchPurpose: '',
+  modelInfo: '',
+  experimentDesc: '',
+  createTime: '',
+  updateTime: ''
 })
 
 // 表单校验规则
 const formRules = ref({
-  planName: [{ required: true, message: '请输入实验方案名称', trigger: 'blur' }],
-  experimentNo: [{ required: true, message: '请输入实验编号', trigger: 'blur' }],
-  purpose: [{ required: true, message: '请输入实验目的', trigger: 'blur' }],
-  principal: [{ required: true, message: '请输入实验负责人', trigger: 'blur' }],
-  dept: [{ required: true, message: '请输入所属科室', trigger: 'blur' }],
-  startTime: [{ required: true, message: '请选择开始时间', trigger: 'change' }],
-  endTime: [{ required: true, message: '请选择结束时间', trigger: 'change' }]
+  planName: [
+    { required: true, message: '请输入实验方案名称', trigger: 'blur' },
+    { min: 2, max: 255, message: '长度在 2 到 255 个字符', trigger: 'blur' }
+  ],
+  researchPurpose: [
+    { required: true, message: '请输入研究目的', trigger: 'blur' },
+    { min: 5, max: 1000, message: '长度在 5 到 1000 个字符', trigger: 'blur' }
+  ],
+  modelInfo: [
+    { required: true, message: '请输入模型信息', trigger: 'blur' },
+    { min: 2, max: 500, message: '长度在 2 到 500 个字符', trigger: 'blur' }
+  ]
 })
 
-// 页面加载时获取列表
-onMounted(() => {
-  getPlanList()
-})
-
-// 获取实验方案列表
-const getPlanList = async () => {
+// 获取实验方案列表（分页）
+const getExperimentList = async () => {
   try {
-    const res = await getPlanPage({
-      pageNum: pageNum.value,
-      pageSize: pageSize.value,
-      ...queryParams.value
+    const res = await request.get('/experiment/list', {
+      params: {
+        planName: searchForm.planName,
+        pageNum: currentPage.value,
+        pageSize: pageSize.value
+      }
     })
-    tableData.value = res.data.records
+    experimentList.value = res.data.records
     total.value = res.data.total
-  } catch (error) {
-    console.error('获取列表失败:', error)
+  } catch (e) {
+    ElMessage.error('获取实验列表失败：' + (e.msg || e.message))
   }
 }
 
-// 重置查询条件
-const resetQuery = () => {
-  queryParams.value = {
-    planName: '',
-    experimentNo: '',
-    status: ''
-  }
-  getPlanList()
-}
-
-// 分页大小改变
+// 分页变化
 const handleSizeChange = (val) => {
   pageSize.value = val
-  getPlanList()
+  getExperimentList()
 }
-
-// 当前页改变
 const handleCurrentChange = (val) => {
-  pageNum.value = val
-  getPlanList()
+  currentPage.value = val
+  getExperimentList()
 }
 
-// 打开新增对话框
+// 选择项变化
+const handleSelectionChange = (val) => {
+  selectedIds.value = val.map(item => item.id)
+}
+
+// 重置搜索
+const resetSearch = () => {
+  searchForm.planName = ''
+  currentPage.value = 1
+  getExperimentList()
+}
+
+// 打开新增弹窗
 const openAddDialog = () => {
-  dialogTitle.value = '新增实验方案'
   isEdit.value = false
   resetForm()
   dialogVisible.value = true
 }
 
-// 打开编辑对话框
-const openEditDialog = async (row) => {
-  dialogTitle.value = '编辑实验方案'
+// 打开编辑弹窗
+const openEditDialog = (row) => {
   isEdit.value = true
-  resetForm()
-
-  // 获取详情
-  const res = await getPlanById(row.id)
-  Object.assign(formData, res.data)
+  // 填充表单数据
+  experimentForm.id = row.id
+  experimentForm.planName = row.planName
+  experimentForm.researchPurpose = row.researchPurpose || ''
+  experimentForm.modelInfo = row.modelInfo
+  experimentForm.experimentDesc = row.experimentDesc || ''
   dialogVisible.value = true
+}
+
+// 打开详情弹窗
+const viewExperimentDetail = (row) => {
+  detailForm.id = row.id
+  detailForm.planName = row.planName
+  detailForm.researchPurpose = row.researchPurpose || ''
+  detailForm.modelInfo = row.modelInfo
+  detailForm.experimentDesc = row.experimentDesc || ''
+  detailForm.createTime = row.createTime || ''
+  detailForm.updateTime = row.updateTime || ''
+  detailVisible.value = true
+}
+
+// 提交表单（新增/编辑）
+const submitForm = async () => {
+  if (!formRef.value) return
+  // 表单校验
+  await formRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    try {
+      if (isEdit.value) {
+        // 编辑操作
+        await request.put('/experiment/update', experimentForm)
+        ElMessage.success('实验方案编辑成功')
+      } else {
+        // 新增操作
+        await request.post('/experiment/add', experimentForm)
+        ElMessage.success('实验方案新增成功')
+      }
+      // 关闭弹窗 + 刷新列表
+      dialogVisible.value = false
+      getExperimentList()
+    } catch (e) {
+      ElMessage.error((isEdit.value ? '编辑' : '新增') + '失败：' + (e.msg || e.message))
+    }
+  })
+}
+
+// 删除实验方案
+const deleteExperiment = async (id) => {
+  try {
+    await ElMessageBox.confirm(
+        '确定要删除该实验方案吗？删除后将无法恢复（若存在关联科研数据则删除失败）',
+        '警告',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }
+    )
+    await request.delete(`/experiment/${id}`)
+    ElMessage.success('实验方案删除成功')
+    getExperimentList()
+  } catch (e) {
+    if (e.msg !== 'cancel') {
+      ElMessage.error('删除失败：' + (e.msg || e.message))
+    }
+  }
 }
 
 // 重置表单
 const resetForm = () => {
+  experimentForm.id = ''
+  experimentForm.planName = ''
+  experimentForm.researchPurpose = ''
+  experimentForm.modelInfo = ''
+  experimentForm.experimentDesc = ''
+  // 清除校验状态
   if (formRef.value) {
-    formRef.value.resetFields()
-  }
-  Object.assign(formData, {
-    id: '',
-    planName: '',
-    experimentNo: '',
-    purpose: '',
-    principal: '',
-    dept: '',
-    startTime: '',
-    endTime: '',
-    status: '0'
-  })
-}
-
-// 提交表单
-const submitForm = async () => {
-  try {
-    await formRef.value.validate()
-    let res
-    if (isEdit.value) {
-      res = await updatePlan(formData.id, formData)
-    } else {
-      res = await createPlan(formData)
-    }
-    ElMessage.success(res.msg)
-    dialogVisible.value = false
-    getPlanList()
-  } catch (error) {
-    console.error('提交失败:', error)
+    formRef.value.clearValidate()
   }
 }
 
-// 删除实验方案
-const deletePlan = (id) => {
-  ElMessageBox.confirm(
-      '确定要删除该实验方案吗？',
-      '提示',
-      {
-        type: 'warning'
-      }
-  ).then(async () => {
-    const res = await deletePlanApi(id)
-    ElMessage.success(res.msg)
-    getPlanList()
-  }).catch(() => {
-    ElMessage.info('已取消删除')
-  })
-}
+// 初始化
+onMounted(() => {
+  getExperimentList()
+})
 
-// 打开状态修改对话框
-const updateStatus = (row) => {
-  statusForm.id = row.id
-  statusForm.oldStatus = row.status
-  statusForm.newStatus = ''
-  statusDialogVisible.value = true
-}
-
-// 确认修改状态
-const confirmUpdateStatus = async () => {
-  if (!statusForm.newStatus) {
-    ElMessage.warning('请选择目标状态')
-    return
+// 监听弹窗关闭，重置表单
+watch(dialogVisible, (val) => {
+  if (!val) {
+    resetForm()
   }
-  try {
-    const res = await updatePlanStatus(statusForm.id, statusForm.newStatus)
-    ElMessage.success(res.msg)
-    statusDialogVisible.value = false
-    getPlanList()
-  } catch (error) {
-    console.error('修改状态失败:', error)
-  }
-}
-
-// 获取状态文本
-const getStatusText = (status) => {
-  const statusMap = {
-    '0': '未开始',
-    '1': '进行中',
-    '2': '已完成',
-    '3': '已终止'
-  }
-  return statusMap[status] || '未知'
-}
-
-// 获取状态标签类型
-const getStatusTagType = (status) => {
-  const typeMap = {
-    '0': 'info',
-    '1': 'primary',
-    '2': 'success',
-    '3': 'danger'
-  }
-  return typeMap[status] || 'default'
-}
+})
 </script>
 
 <style scoped>
-.experiment-plan-container {
-  padding: 10px;
+.experiment-manage-container {
+  padding: 20px;
+  background-color: #f5f7fa;
+  min-height: calc(100vh - 60px);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.search-form {
+  flex: 1;
+}
+
+.text-ellipsis {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dialog-footer {
+  text-align: right;
+}
+
+.el-descriptions {
+  --el-descriptions-label-width: 120px;
 }
 </style>
