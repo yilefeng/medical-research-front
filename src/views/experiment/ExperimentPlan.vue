@@ -25,7 +25,6 @@
       <el-table
           :data="experimentList"
           border
-          stripe
           @selection-change="handleSelectionChange"
           style="margin-top: 20px; width: 100%;"
       >
@@ -42,29 +41,23 @@
         <el-table-column prop="modelInfo" label="模型信息" min-width="200" align="center" />
         <el-table-column prop="createTime" label="创建时间" width="200" align="center" />
         <el-table-column prop="updateTime" label="更新时间" width="200" align="center" />
-        <el-table-column label="操作" width="180" align="center">
+        <el-table-column label="操作" width="250" align="center">
           <template #default="scope">
             <el-button
                 type="primary"
                 size="small"
-                icon="Edit"
                 @click="openEditDialog(scope.row)"
-                circle
-            />
+            >编辑</el-button>
             <el-button
                 type="danger"
                 size="small"
-                icon="Delete"
                 @click="deleteExperiment(scope.row.id)"
-                circle
-            />
+            >删除</el-button>
             <el-button
                 type="info"
                 size="small"
-                icon="View"
                 @click="viewExperimentDetail(scope.row)"
-                circle
-            />
+            >显示</el-button>
           </template>
         </el-table-column>
       </el-table>

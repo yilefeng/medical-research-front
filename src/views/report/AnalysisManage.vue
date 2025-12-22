@@ -43,7 +43,7 @@
 
     <!-- 数据选择弹窗 -->
     <el-dialog title="选择科研数据" v-model="dataDialogVisible" width="800px">
-      <el-table :data="dataList" border @selection-change="handleDataSelection" :loading="dataLoading">
+      <el-table :data="dataList" border @selection-change="handleDataSelection" :loading="dataLoading" ref="dataTableRef">
         <el-table-column type="selection" width="55" />
         <el-table-column prop="id" label="数据ID" width="80" />
         <el-table-column prop="trueLabel" label="真实标签" width="120">
@@ -67,6 +67,8 @@
       />
       <template #footer>
         <div class="dialog-footer">
+          <el-button @click="selectAllData">全选</el-button>
+          <el-button @click="clearAllData">清空</el-button>
           <el-button @click="dataDialogVisible = false">取消</el-button>
           <el-button type="primary" @click="confirmDataSelection">确认选择</el-button>
         </div>
@@ -75,29 +77,13 @@
 
     <!-- 分析结果展示 -->
     <el-card v-if="analysisResult" title="统计分析结果" style="margin-top: 20px;" :loading="resultLoading">
-      <!-- ECharts ROC曲线 -->
+      <!-- ECharts ROC曲线：使用官方组件，正确绑定配置项 -->
       <div class="roc-echarts-container" style="width: 100%; height: 600px; margin-bottom: 30px;">
-        <echarts ref="rocEchartsRef" :option="rocEchartsOption" style="width: 100%; height: 100%;" />
-      </div>
-
-      <!-- 统计结果表格 -->
-      <el-table :data="statResultTable" border style="margin-bottom: 30px;">
-        <el-table-column prop="serialNo" label="序号" width="80" align="center" />
-        <el-table-column prop="indexName" label="统计指标" min-width="200" align="center" />
-        <el-table-column prop="indexValue" label="结果" min-width="200" align="center" />
-      </el-table>
-
-      <!-- ROC图片预览 -->
-      <div v-if="analysisResult.rocImagePath" style="text-align: center; margin-bottom: 30px;">
-        <h3 style="margin-bottom: 15px;">ROC曲线图片预览</h3>
-        <img :src="'http://localhost:8080' + analysisResult.rocImagePath" style="max-width: 80%; height: auto; border: 1px solid #e6e6e6;" />
-      </div>
-
-      <!-- 操作按钮 -->
-      <div style="text-align: center; margin-bottom: 10px;">
-        <el-button type="primary" @click="previewPdfReport">预览PDF报告</el-button>
-        <el-button type="success" @click="downloadPdfReport" style="margin-left: 20px;">下载PDF报告</el-button>
-        <el-button type="info" @click="viewRocDetail" style="margin-left: 20px;" :disabled="!analysisResult.rocImagePath">查看ROC原图</el-button>
+        <ECharts
+            ref="rocEchartsRef"
+            :option="getOptions"
+            style="width: 100%; height: 100%;"
+        />
       </div>
     </el-card>
 
@@ -105,30 +91,40 @@
     <el-dialog title="PDF分析报告预览" v-model="pdfPreviewVisible" width="1000px" height="85vh" append-to-body>
       <iframe :src="pdfPreviewUrl" style="width: 100%; height: 100%;" frameborder="0" />
     </el-dialog>
-
-    <!-- ROC图片预览弹窗 -->
-    <el-dialog title="ROC曲线高清图" v-model="rocImagePreviewVisible" width="800px" append-to-body>
-      <img :src="'http://localhost:8080' + analysisResult.rocImagePath" style="width: 100%; height: auto;" />
-    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, reactive, watch } from 'vue'
+import { ref, onMounted, reactive, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-
-} from '@/api/analysisReport'
-
-// 修改后的正确代码：
-import { defineComponent } from 'vue'
-import ECharts from 'vue-echarts'
+import ECharts from 'vue-echarts' // vue-echarts v6+ 默认导入
 import * as echarts from 'echarts'
+// 手动注册ECharts所需模块
+import { use } from 'echarts/core'
+import { LineChart } from 'echarts/charts'
+import {
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent,
+  GridComponent,
+  GraphicComponent
+} from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import request from "@/utils/request.js";
 
-// 初始化ECharts
+// 注册ECharts模块（必须步骤，否则图表无法渲染）
+use([
+  LineChart,
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent,
+  GridComponent,
+  GraphicComponent,
+  CanvasRenderer
+])
+
+// 初始化ECharts实例引用
 const rocEchartsRef = ref(null)
-const rocEchartsOption = ref({})
 
 // 表单数据
 const analysisForm = reactive({
@@ -149,21 +145,20 @@ const dataCurrentPage = ref(1)
 const dataPageSize = ref(10)
 const dataTotal = ref(0)
 const selectedDataList = ref([])
+const dataTableRef = ref(null)
 
 // 分析结果
 const analysisResult = ref(null)
 const resultLoading = ref(false)
-const statResultTable = ref([])
 
 // 预览弹窗
 const pdfPreviewVisible = ref(false)
 const pdfPreviewUrl = ref('')
-const rocImagePreviewVisible = ref(false)
 
 // 获取实验列表
 const getExperimentList = async () => {
   try {
-    const res = await request.get('/experiment/list',{
+    const res = await request.get('/experiment/list', {
       params: {
         pageNum: 1,
         pageSize: 10000
@@ -171,7 +166,7 @@ const getExperimentList = async () => {
     })
     experimentList.value = res.data.records
   } catch (e) {
-    ElMessage.error('获取实验列表失败：' + e.msg)
+    ElMessage.error('获取实验列表失败：' + (e.msg || e.message))
   }
 }
 
@@ -199,7 +194,7 @@ const getResearchDataList = async () => {
     dataList.value = res.data.records
     dataTotal.value = res.data.total
   } catch (e) {
-    ElMessage.error('获取数据列表失败：' + e.msg)
+    ElMessage.error('获取数据列表失败：' + (e.msg || e.message))
   } finally {
     dataLoading.value = false
   }
@@ -218,6 +213,27 @@ const handleDataSizeChange = (val) => {
 const handleDataCurrentChange = (val) => {
   dataCurrentPage.value = val
   getResearchDataList()
+}
+
+// 全选数据
+const selectAllData = () => {
+  if (dataTableRef.value && dataList.value.length > 0) {
+    // 手动设置每个行的选中状态
+    dataList.value.forEach(row => {
+      dataTableRef.value.toggleRowSelection(row, true)
+    })
+    // 触发 selection-change 事件
+    handleDataSelection(dataList.value)
+    ElMessage.success(`已选择全部 ${dataList.value.length} 条数据`)
+  }
+}
+
+// 清空选择
+const clearAllData = () => {
+  if (dataTableRef.value) {
+    dataTableRef.value.clearSelection()
+    ElMessage.info('已清空选择')
+  }
 }
 
 // 确认数据选择
@@ -243,38 +259,32 @@ const executeAnalysis = async () => {
   try {
     const res = await request.post('/analysis/generate', analysisForm)
     analysisResult.value = res.data
-    // 构建统计结果表格
-    buildStatResultTable()
-    // 构建ECharts ROC图
-    buildRocEcharts()
+    // 打印数据验证字段是否完整
+    console.log('分析结果数据：', analysisResult.value)
     ElMessage.success('统计分析完成，报告生成成功')
   } catch (e) {
-    ElMessage.error('分析失败：' + e.msg)
+    ElMessage.error('分析失败：' + (e.msg || e.message))
   } finally {
     resultLoading.value = false
   }
 }
 
-// 构建统计结果表格
-const buildStatResultTable = () => {
+// 计算属性：生成ECharts ROC曲线配置项
+const getOptions = computed(() => {
   const result = analysisResult.value
-  statResultTable.value = [
-    { serialNo: 1, indexName: '模型1 AUC值', indexValue: result.auc1.toFixed(4) },
-    { serialNo: 2, indexName: '模型2 AUC值', indexValue: result.auc2.toFixed(4) },
-    { serialNo: 3, indexName: 'AUC差异（模型1 - 模型2）', indexValue: result.aucDiff.toFixed(4) },
-    { serialNo: 4, indexName: '标准误（Std Error）', indexValue: result.stdErr.toFixed(4) },
-    { serialNo: 5, indexName: 'Z统计量', indexValue: result.zValue.toFixed(4) },
-    { serialNo: 6, indexName: '双侧P值', indexValue: result.pValue.toFixed(4) },
-    { serialNo: 7, indexName: '统计学差异判断', indexValue: result.pValue < 0.05 ? '存在显著统计学差异' : '无显著统计学差异' },
-    { serialNo: 8, indexName: '报告ID', indexValue: result.reportId },
-    { serialNo: 9, indexName: '报告生成时间', indexValue: new Date().toLocaleString() }
-  ]
-}
+  if (!result) {
+    return {}
+  }
 
-// 构建ROC ECharts图表
-const buildRocEcharts = () => {
-  const result = analysisResult.value
-  rocEchartsOption.value = {
+  // 验证必要字段是否存在
+  const requiredFields = ['auc1', 'auc2', 'fpr1', 'tpr1', 'fpr2', 'tpr2']
+  const hasMissingField = requiredFields.some(field => !result[field])
+  if (hasMissingField) {
+    console.warn('分析结果缺少必要字段，无法渲染ROC曲线', requiredFields.filter(field => !result[field]))
+    return {}
+  }
+
+  return {
     title: {
       text: 'ROC曲线（受试者工作特征曲线）',
       subtext: '基于选中科研数据计算',
@@ -286,7 +296,12 @@ const buildRocEcharts = () => {
     },
     tooltip: {
       trigger: 'item',
-      formatter: '{b}<br/>{c0} (FPR) : {c1} (TPR)'
+      formatter: function(params) {
+        if (params.seriesName === '随机猜测（基线）') {
+          return params.seriesName;
+        }
+        return `${params.seriesName}<br/>FPR: ${params.value[0].toFixed(4)}<br/>TPR: ${params.value[1].toFixed(4)}`;
+      }
     },
     legend: {
       data: [
@@ -295,58 +310,154 @@ const buildRocEcharts = () => {
         '随机猜测（基线）'
       ],
       left: 'left',
-      top: 30
+      top: 30,
+      textStyle: {
+        fontSize: 12
+      }
     },
     grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
+      left: '12%',
+      right: '8%',
+      bottom: '12%',
+      top: '18%',
       containLabel: true
     },
     xAxis: {
       name: '假阳性率（FPR）',
       nameLocation: 'middle',
       nameGap: 30,
+      nameTextStyle: {
+        fontSize: 14,
+        fontWeight: 'bold'
+      },
       type: 'value',
       min: 0,
       max: 1,
       axisLabel: {
-        formatter: '{value}'
+        formatter: '{value}',
+        fontSize: 12
+      },
+      splitLine: {
+        show: true,
+        lineStyle: {
+          color: '#f0f0f0',
+          type: 'solid'
+        }
+      },
+      axisLine: {
+        show: true,
+        lineStyle: {
+          color: '#333'
+        }
       }
     },
     yAxis: {
       name: '真阳性率（TPR）',
       nameLocation: 'middle',
-      nameGap: 40,
+      nameGap: 50,
+      nameTextStyle: {
+        fontSize: 14,
+        fontWeight: 'bold'
+      },
       type: 'value',
       min: 0,
       max: 1,
       axisLabel: {
-        formatter: '{value}'
+        formatter: '{value}',
+        fontSize: 12
+      },
+      splitLine: {
+        show: true,
+        lineStyle: {
+          color: '#f0f0f0',
+          type: 'solid'
+        }
+      },
+      axisLine: {
+        show: true,
+        lineStyle: {
+          color: '#333'
+        }
       }
     },
     series: [
       {
         name: `模型1 (AUC=${result.auc1.toFixed(4)})`,
         type: 'line',
-        data: result.fpr1.map((fpr, index) => [fpr, result.tpr1[index]]),
+        data: result.fpr1.map((fpr, index) => [parseFloat(fpr), parseFloat(result.tpr1[index])]),
         smooth: false,
         lineStyle: {
           color: '#1989fa',
-          width: 2
+          width: 3
         },
-        symbol: 'none'
+        itemStyle: {
+          color: '#1989fa'
+        },
+        symbol: 'circle',
+        symbolSize: 6,
+        showSymbol: false,
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [{
+              offset: 0, color: 'rgba(25, 137, 250, 0.3)'
+            }, {
+              offset: 1, color: 'rgba(25, 137, 250, 0.1)'
+            }]
+          }
+        },
+        emphasis: {
+          focus: 'series',
+          lineStyle: {
+            width: 4
+          },
+          itemStyle: {
+            symbolSize: 8
+          }
+        }
       },
       {
         name: `模型2 (AUC=${result.auc2.toFixed(4)})`,
         type: 'line',
-        data: result.fpr2.map((fpr, index) => [fpr, result.tpr2[index]]),
+        data: result.fpr2.map((fpr, index) => [parseFloat(fpr), parseFloat(result.tpr2[index])]),
         smooth: false,
         lineStyle: {
           color: '#f56c6c',
-          width: 2
+          width: 3
         },
-        symbol: 'none'
+        itemStyle: {
+          color: '#f56c6c'
+        },
+        symbol: 'circle',
+        symbolSize: 6,
+        showSymbol: false,
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [{
+              offset: 0, color: 'rgba(245, 108, 108, 0.3)'
+            }, {
+              offset: 1, color: 'rgba(245, 108, 108, 0.1)'
+            }]
+          }
+        },
+        emphasis: {
+          focus: 'series',
+          lineStyle: {
+            width: 4
+          },
+          itemStyle: {
+            symbolSize: 8
+          }
+        }
       },
       {
         name: '随机猜测（基线）',
@@ -355,40 +466,37 @@ const buildRocEcharts = () => {
         smooth: false,
         lineStyle: {
           color: '#909399',
-          width: 1,
+          width: 2,
           type: 'dashed'
         },
-        symbol: 'none'
+        symbol: 'none',
+        showSymbol: false,
+        emphasis: {
+          disabled: true
+        }
+      }
+    ],
+    graphic: [
+      {
+        type: 'text',
+        left: 'center',
+        bottom: 5,
+        style: {
+          text: '曲线越靠近左上角表示模型性能越好',
+          fill: '#666',
+          fontSize: 12
+        }
       }
     ]
   }
-  // 渲染图表
-  rocEchartsRef.value.setOption(rocEchartsOption.value)
-}
+})
 
-// 预览PDF报告
-const previewPdfReport = () => {
-  if (!analysisResult.value || !analysisResult.value.pdfPath) {
-    ElMessage.warning('暂无PDF报告可预览')
-    return
+// 监听ECharts配置项变化，强制刷新图表
+watch(getOptions, (newOption) => {
+  if (rocEchartsRef.value && newOption && Object.keys(newOption).length > 0) {
+    rocEchartsRef.value.setOption(newOption, true) // true表示不合并，强制刷新
   }
-  pdfPreviewUrl.value = 'http://localhost:8080' + analysisResult.value.pdfPath
-  pdfPreviewVisible.value = true
-}
-
-// 下载PDF报告
-const downloadPdfReport = () => {
-  if (!analysisResult.value || !analysisResult.value.pdfPath) {
-    ElMessage.warning('暂无PDF报告可下载')
-    return
-  }
-  window.open('http://localhost:8080' + analysisResult.value.pdfPath)
-}
-
-// 查看ROC原图
-const viewRocDetail = () => {
-  rocImagePreviewVisible.value = true
-}
+}, { deep: true }) // 深度监听配置项内部变化
 
 // 重置表单
 const resetForm = () => {
@@ -398,8 +506,6 @@ const resetForm = () => {
   analysisForm.dataIds = ''
   dataSelected.value = false
   analysisResult.value = null
-  statResultTable.value = []
-  rocEchartsOption.value = {}
 }
 
 // 监听实验ID变化，重置数据选择
@@ -418,9 +524,11 @@ onMounted(() => {
 .analysis-container {
   padding: 20px;
 }
+
 .dialog-footer {
   text-align: right;
 }
+
 .roc-echarts-container {
   border: 1px solid #f0f0f0;
   padding: 10px;
