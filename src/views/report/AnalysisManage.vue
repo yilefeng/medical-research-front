@@ -41,20 +41,40 @@
       </el-form>
     </el-card>
 
-    <!-- 数据选择弹窗 -->
+    <!-- 数据选择弹窗（优化：新增全选复选框，移除原有全选/清空按钮） -->
     <el-dialog title="选择科研数据" v-model="dataDialogVisible" width="800px">
-      <el-table :data="dataList" border @selection-change="handleDataSelection" :loading="dataLoading" ref="dataTableRef">
-        <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" label="数据ID" width="80" />
-        <el-table-column prop="trueLabel" label="真实标签" width="120">
-          <template #default="scope">
-            {{ scope.row.trueLabel === 1 ? '阳性（恶性）' : '阴性（良性）' }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="model1Score" label="模型1评分" width="120" />
-        <el-table-column prop="model2Score" label="模型2评分" width="120" />
-        <el-table-column prop="createTime" label="创建时间" width="200" />
+      <!-- 全局全选复选框 -->
+      <div style="margin-bottom: 15px; display: flex; align-items: center;">
+        <el-checkbox
+            v-model="allDataSelected"
+            @change="handleAllDataChange"
+            label="全选该实验所有数据"
+        />
+        <span style="margin-left: 10px; color: #666; font-size: 12px;">
+          共 {{ allDataIds.length }} 条数据
+        </span>
+      </div>
+
+      <el-table
+          :data="dataList"
+          border
+          @selection-change="handleDataSelection"
+          :loading="dataLoading"
+          ref="dataTableRef"
+          :reserve-selection="true"
+      >
+      <el-table-column type="selection" width="55" />
+      <el-table-column prop="id" label="数据ID" width="80" />
+      <el-table-column prop="trueLabel" label="真实标签" width="120">
+        <template #default="scope">
+          {{ scope.row.trueLabel === 1 ? '阳性（恶性）' : '阴性（良性）' }}
+        </template>
+      </el-table-column>
+      <el-table-column prop="model1Score" label="模型1评分" width="120" />
+      <el-table-column prop="model2Score" label="模型2评分" width="120" />
+      <el-table-column prop="createTime" label="创建时间" width="200" />
       </el-table>
+
       <el-pagination
           @size-change="handleDataSizeChange"
           @current-change="handleDataCurrentChange"
@@ -65,10 +85,9 @@
           :total="dataTotal"
           style="margin-top: 20px; text-align: right;"
       />
+
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="selectAllData">全选</el-button>
-          <el-button @click="clearAllData">清空</el-button>
           <el-button @click="dataDialogVisible = false">取消</el-button>
           <el-button type="primary" @click="confirmDataSelection">确认选择</el-button>
         </div>
@@ -77,7 +96,6 @@
 
     <!-- 分析结果展示 -->
     <el-card v-if="analysisResult" title="统计分析结果" style="margin-top: 20px;" :loading="resultLoading">
-      <!-- ECharts ROC曲线：使用官方组件，正确绑定配置项 -->
       <div class="roc-echarts-container" style="width: 100%; height: 600px; margin-bottom: 30px;">
         <ECharts
             ref="rocEchartsRef"
@@ -95,13 +113,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive, watch, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import ECharts from 'vue-echarts' // vue-echarts v6+ 默认导入
+import {ref, onMounted, reactive, watch, computed,nextTick } from 'vue'
+import {ElMessage, ElMessageBox} from 'element-plus'
+import ECharts from 'vue-echarts'
 import * as echarts from 'echarts'
-// 手动注册ECharts所需模块
-import { use } from 'echarts/core'
-import { LineChart } from 'echarts/charts'
+import {use} from 'echarts/core'
+import {LineChart} from 'echarts/charts'
 import {
   TitleComponent,
   TooltipComponent,
@@ -109,10 +126,10 @@ import {
   GridComponent,
   GraphicComponent
 } from 'echarts/components'
-import { CanvasRenderer } from 'echarts/renderers'
+import {CanvasRenderer} from 'echarts/renderers'
 import request from "@/utils/request.js";
 
-// 注册ECharts模块（必须步骤，否则图表无法渲染）
+// 注册ECharts模块
 use([
   LineChart,
   TitleComponent,
@@ -137,15 +154,17 @@ const analysisFormRef = ref(null)
 const experimentList = ref([])
 const dataSelected = ref(false)
 
-// 数据选择弹窗
+// 数据选择弹窗（优化：新增全局全选相关状态）
 const dataDialogVisible = ref(false)
 const dataList = ref([])
 const dataLoading = ref(false)
 const dataCurrentPage = ref(1)
 const dataPageSize = ref(10)
 const dataTotal = ref(0)
-const selectedDataList = ref([])
 const dataTableRef = ref(null)
+const allDataSelected = ref(false) // 全局全选复选框状态
+const allDataIds = ref([]) // 该实验所有数据ID（非分页）
+const selectedDataIds = ref(new Set()) // 全局选中的ID集合（去重）
 
 // 分析结果
 const analysisResult = ref(null)
@@ -170,17 +189,46 @@ const getExperimentList = async () => {
   }
 }
 
-// 打开数据选择弹窗
-const openDataDialog = () => {
+// 获取该实验所有数据ID（支撑全局全选，非分页）
+const getAllDataIds = async (experimentId) => {
+  try {
+    const res = await request.get('/data/list', {
+      params: {
+        experimentId,
+        pageNum: 1,
+        pageSize: 99999 // 足够大的数值，获取全部数据
+      }
+    })
+    const allData = res.data.records
+    allDataIds.value = allData.map(item => item.id) // 存储所有数据ID
+    return allDataIds.value
+  } catch (e) {
+    ElMessage.error('获取全部数据ID失败：' + (e.msg || e.message))
+    return []
+  }
+}
+
+// 打开数据选择弹窗（优化：初始化全选状态）
+const openDataDialog = async () => {
   if (!analysisForm.experimentId) {
     ElMessage.warning('请先选择关联实验')
     return
   }
+  // 重置弹窗状态
+  allDataSelected.value = false
+  selectedDataIds.value.clear()
+  allDataIds.value = []
+  dataCurrentPage.value = 1
+
+  // 获取该实验所有数据ID
+  await getAllDataIds(analysisForm.experimentId)
+
+  // 打开弹窗并加载当前页数据
   dataDialogVisible.value = true
   getResearchDataList()
 }
 
-// 获取科研数据列表（弹窗内）
+// 获取科研数据列表（弹窗内分页数据）
 const getResearchDataList = async () => {
   dataLoading.value = true
   try {
@@ -193,6 +241,17 @@ const getResearchDataList = async () => {
     })
     dataList.value = res.data.records
     dataTotal.value = res.data.total
+
+    // 回显已选中的行（分页切换后保留选中状态）
+    nextTick(() => {
+      if (dataTableRef.value && dataList.value.length > 0) {
+        dataList.value.forEach(row => {
+          if (selectedDataIds.value.has(row.id)) {
+            dataTableRef.value.toggleRowSelection(row, true)
+          }
+        })
+      }
+    })
   } catch (e) {
     ElMessage.error('获取数据列表失败：' + (e.msg || e.message))
   } finally {
@@ -200,9 +259,53 @@ const getResearchDataList = async () => {
   }
 }
 
-// 数据选择变化
+// 表格行选择变化（同步到全局选中ID集合）
 const handleDataSelection = (val) => {
-  selectedDataList.value = val
+  const currentPageIds = val.map(item => item.id)
+
+  // 新增当前页选中的ID
+  currentPageIds.forEach(id => {
+    selectedDataIds.value.add(id)
+  })
+
+  // 移除当前页取消选中的ID
+  dataList.value.forEach(row => {
+    if (!currentPageIds.includes(row.id) && selectedDataIds.value.has(row.id)) {
+      selectedDataIds.value.delete(row.id)
+    }
+  })
+
+  // 更新全选复选框状态：选中ID数量等于总数据数量则勾选
+  allDataSelected.value = selectedDataIds.value.size === allDataIds.value.length
+}
+
+// 全局全选复选框变化（控制所有数据选中/取消）
+const handleAllDataChange = (checked) => {
+  if (checked) {
+    // 全选：添加所有数据ID到选中集合
+    allDataIds.value.forEach(id => {
+      selectedDataIds.value.add(id)
+    })
+    // 勾选当前页所有行
+    nextTick(() => {
+      if (dataTableRef.value && dataList.value.length > 0) {
+        dataList.value.forEach(row => {
+          dataTableRef.value.toggleRowSelection(row, true)
+        })
+      }
+    })
+    ElMessage.success(`已选中该实验全部 ${allDataIds.value.length} 条数据`)
+  } else {
+    // 取消全选：清空选中集合
+    selectedDataIds.value.clear()
+    // 取消当前页所有行选中
+    nextTick(() => {
+      if (dataTableRef.value) {
+        dataTableRef.value.clearSelection()
+      }
+    })
+    ElMessage.info('已取消所有数据选中状态')
+  }
 }
 
 // 数据分页变化
@@ -215,38 +318,18 @@ const handleDataCurrentChange = (val) => {
   getResearchDataList()
 }
 
-// 全选数据
-const selectAllData = () => {
-  if (dataTableRef.value && dataList.value.length > 0) {
-    // 手动设置每个行的选中状态
-    dataList.value.forEach(row => {
-      dataTableRef.value.toggleRowSelection(row, true)
-    })
-    // 触发 selection-change 事件
-    handleDataSelection(dataList.value)
-    ElMessage.success(`已选择全部 ${dataList.value.length} 条数据`)
-  }
-}
-
-// 清空选择
-const clearAllData = () => {
-  if (dataTableRef.value) {
-    dataTableRef.value.clearSelection()
-    ElMessage.info('已清空选择')
-  }
-}
-
-// 确认数据选择
+// 确认数据选择（优化：使用全局选中ID集合）
 const confirmDataSelection = () => {
-  if (selectedDataList.value.length === 0) {
+  const selectedIdArr = Array.from(selectedDataIds.value)
+  if (selectedIdArr.length === 0) {
     ElMessage.warning('请至少选择一条科研数据')
     return
   }
-  const dataIds = selectedDataList.value.map(item => item.id).join(',')
-  analysisForm.dataIds = dataIds
+  // 拼接ID字符串
+  analysisForm.dataIds = selectedIdArr.join(',')
   dataSelected.value = true
   dataDialogVisible.value = false
-  ElMessage.success(`已选择 ${selectedDataList.value.length} 条数据`)
+  ElMessage.success(`已选择 ${selectedIdArr.length} 条数据`)
 }
 
 // 执行统计分析
@@ -259,7 +342,6 @@ const executeAnalysis = async () => {
   try {
     const res = await request.post('/analysis/generate', analysisForm)
     analysisResult.value = res.data
-    // 打印数据验证字段是否完整
     console.log('分析结果数据：', analysisResult.value)
     ElMessage.success('统计分析完成，报告生成成功')
   } catch (e) {
@@ -296,7 +378,7 @@ const getOptions = computed(() => {
     },
     tooltip: {
       trigger: 'item',
-      formatter: function(params) {
+      formatter: function (params) {
         if (params.seriesName === '随机猜测（基线）') {
           return params.seriesName;
         }
@@ -494,9 +576,9 @@ const getOptions = computed(() => {
 // 监听ECharts配置项变化，强制刷新图表
 watch(getOptions, (newOption) => {
   if (rocEchartsRef.value && newOption && Object.keys(newOption).length > 0) {
-    rocEchartsRef.value.setOption(newOption, true) // true表示不合并，强制刷新
+    rocEchartsRef.value.setOption(newOption, true)
   }
-}, { deep: true }) // 深度监听配置项内部变化
+}, {deep: true})
 
 // 重置表单
 const resetForm = () => {
@@ -506,12 +588,19 @@ const resetForm = () => {
   analysisForm.dataIds = ''
   dataSelected.value = false
   analysisResult.value = null
+  // 重置全选相关状态
+  allDataSelected.value = false
+  selectedDataIds.value.clear()
+  allDataIds.value = []
 }
 
 // 监听实验ID变化，重置数据选择
 watch(() => analysisForm.experimentId, () => {
   dataSelected.value = false
   analysisForm.dataIds = ''
+  allDataSelected.value = false
+  selectedDataIds.value.clear()
+  allDataIds.value = []
 })
 
 // 初始化
