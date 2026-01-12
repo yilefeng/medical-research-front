@@ -39,6 +39,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="modelInfo" label="模型信息" min-width="200" align="center" />
+        <el-table-column prop="owner" label="创建者" min-width="200" align="center" />
         <el-table-column prop="createTime" label="创建时间" width="200" align="center" />
         <el-table-column prop="updateTime" label="更新时间" width="200" align="center" />
         <el-table-column label="操作" width="250" align="center">
@@ -46,11 +47,13 @@
             <el-button
                 type="primary"
                 size="small"
+                :disabled="!scope.row.isEdit"
                 @click="openEditDialog(scope.row)"
             >编辑</el-button>
             <el-button
                 type="danger"
                 size="small"
+                :disabled="!scope.row.isEdit"
                 @click="deleteExperiment(scope.row.id)"
             >删除</el-button>
             <el-button
