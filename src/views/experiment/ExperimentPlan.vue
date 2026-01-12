@@ -125,6 +125,24 @@
               show-word-limit
           />
         </el-form-item>
+        <el-form-item label="参与科研人员" prop="researchIds">
+          <el-select
+              v-model="experimentForm.researchIds"
+              placeholder="请选择参与科研人员"
+              multiple
+              clearable
+              filterable
+              collapse-tags
+              collapse-tags-tooltip    style="width: 100%"
+          >
+            <el-option
+                v-for="user in userList"
+                :key="user.id"
+                :label="user.username"
+                :value="user.id"
+            />
+          </el-select>
+        </el-form-item>
       </el-form>
 
       <!-- 弹窗底部按钮 -->
@@ -158,6 +176,9 @@
             {{ detailForm.experimentDesc || '-' }}
           </div>
         </el-descriptions-item>
+        <el-descriptions-item label="参与科研人员">
+          {{ getResearcherNames(detailForm.researchIds) || '-' }}
+        </el-descriptions-item>
         <el-descriptions-item label="创建时间">
           {{ detailForm.createTime || '-' }}
         </el-descriptions-item>
@@ -188,6 +209,7 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 const selectedIds = ref([])
+const userList = ref([])
 
 // 弹窗相关
 const dialogVisible = ref(false)
@@ -201,7 +223,8 @@ const experimentForm = reactive({
   planName: '',
   researchPurpose: '',
   modelInfo: '',
-  experimentDesc: ''
+  experimentDesc: '',
+  researchIds: [],
 })
 
 // 详情表单
@@ -248,6 +271,15 @@ const getExperimentList = async () => {
   }
 }
 
+const getUserList = async () => {
+  try {
+    const res = await request.get('/sys/user/list', )
+    userList.value = res.data
+  } catch (e) {
+    ElMessage.error('获取用户列表失败：' + (e.msg || e.message))
+  }
+}
+
 // 分页变化
 const handleSizeChange = (val) => {
   pageSize.value = val
@@ -286,6 +318,10 @@ const openEditDialog = (row) => {
   experimentForm.researchPurpose = row.researchPurpose || ''
   experimentForm.modelInfo = row.modelInfo
   experimentForm.experimentDesc = row.experimentDesc || ''
+  // 设置科研人员ID数组
+  experimentForm.researchIds = Array.isArray(row.researchIds)
+      ? row.researchIds
+      : []
   dialogVisible.value = true
 }
 
@@ -298,6 +334,9 @@ const viewExperimentDetail = (row) => {
   detailForm.experimentDesc = row.experimentDesc || ''
   detailForm.createTime = row.createTime || ''
   detailForm.updateTime = row.updateTime || ''
+  detailForm.researchIds = Array.isArray(row.researchIds)
+      ? row.researchIds
+      : []
   detailVisible.value = true
 }
 
@@ -356,15 +395,29 @@ const resetForm = () => {
   experimentForm.researchPurpose = ''
   experimentForm.modelInfo = ''
   experimentForm.experimentDesc = ''
+  experimentForm.researchIds = []
   // 清除校验状态
   if (formRef.value) {
     formRef.value.clearValidate()
   }
 }
 
+// 根据ID获取科研人员姓名
+const getResearcherNames = (ids) => {
+  if (!Array.isArray(ids) || !ids.length) return '-'
+  return ids
+      .map(id => {
+        const user = userList.value.find(u => u.id === id)
+        return user ? user.username : null
+      })
+      .filter(Boolean)
+      .join(', ')
+}
+
 // 初始化
 onMounted(() => {
   getExperimentList()
+  getUserList()
 })
 
 // 监听弹窗关闭，重置表单
