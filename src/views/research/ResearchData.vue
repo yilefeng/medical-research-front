@@ -4,7 +4,13 @@
       <div class="card-header">
         <el-form :inline="true" :model="searchForm" class="search-form">
           <el-form-item label="关联实验">
-            <el-select v-model="searchForm.experimentId" placeholder="请选择实验" clearable>
+            <!-- 关键修改：添加@change事件，选择后自动查询 -->
+            <el-select
+                v-model="searchForm.experimentId"
+                placeholder="请选择实验"
+                clearable
+                @change="getUserDataList"
+            >
               <el-option
                   v-for="item in experimentList"
                   :key="item.id"
@@ -14,17 +20,14 @@
             </el-select>
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="getUserDataList">查询</el-button>
+<!--            <el-button type="primary" @click="getUserDataList">查询</el-button>-->
             <el-button @click="resetSearch">重置</el-button>
           </el-form-item>
         </el-form>
         <div class="upload-btn">
           <el-upload
               class="upload-demo"
-              action="#",
-              :before-upload="beforeUpload"
-              :on-success="uploadSuccess"
-              :on-error="uploadError"
+              action="#"
               :auto-upload="false"
               ref="uploadRef"
           >
@@ -68,8 +71,14 @@
 
     <!-- 上传数据弹窗 -->
     <el-dialog title="上传CSV科研数据" v-model="uploadDialogVisible" width="500px">
-      <el-form :model="uploadForm" label-width="100px" ref="uploadFormRef">
-        <el-form-item label="关联实验" prop="experimentId" required>
+      <!-- 关键修改：添加表单验证规则 -->
+      <el-form
+          :model="uploadForm"
+          label-width="100px"
+          ref="uploadFormRef"
+          :rules="uploadFormRules"
+      >
+        <el-form-item label="关联实验" prop="experimentId">
           <el-select v-model="uploadForm.experimentId" placeholder="请选择实验" clearable>
             <el-option
                 v-for="item in experimentList"
@@ -79,7 +88,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="CSV文件" prop="file" required>
+        <el-form-item label="CSV文件" prop="file">
           <el-upload
               class="upload-demo"
               :auto-upload="false"
@@ -108,7 +117,6 @@ import { ref, onMounted, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
 
-
 // 搜索表单
 const searchForm = reactive({
   experimentId: ''
@@ -127,6 +135,15 @@ const uploadDialogVisible = ref(false)
 const uploadForm = reactive({
   experimentId: ''
 })
+// 关键修改：上传表单验证规则
+const uploadFormRules = reactive({
+  experimentId: [
+    { required: true, message: '请选择关联实验', trigger: 'change' }
+  ],
+  file: [
+    { required: true, message: '请选择CSV文件', trigger: 'change' }
+  ]
+})
 const fileList = ref([])
 const uploadFormRef = ref(null)
 const fileUploadRef = ref(null)
@@ -136,7 +153,7 @@ const selectedFile = ref(null)
 // 获取实验列表
 const getExperimentList = async () => {
   try {
-    const res = await request.get('/experiment/list',{
+    const res = await request.get('/experiment/list', {
       params: {
         pageNum: 1,
         pageSize: 10000
@@ -144,7 +161,9 @@ const getExperimentList = async () => {
     })
     experimentList.value = res.data.records
   } catch (e) {
-    ElMessage.error('获取实验列表失败：' + e.msg)
+    // 关键修改：兼容不同错误信息格式
+    const errMsg = e.response?.data?.msg || e.message || '获取实验列表失败'
+    ElMessage.error(errMsg)
   }
 }
 
@@ -161,7 +180,9 @@ const getUserDataList = async () => {
     dataList.value = res.data.records
     total.value = res.data.total
   } catch (e) {
-    ElMessage.error('获取数据列表失败：' + e.msg)
+    // 关键修改：兼容不同错误信息格式
+    const errMsg = e.response?.data?.msg || e.message || '获取数据列表失败'
+    ElMessage.error(errMsg)
   }
 }
 
@@ -195,11 +216,13 @@ const deleteSingle = async (id) => {
       type: 'warning'
     })
     const res = await request.delete(`/data/${id}`)
-    ElMessage.success(res.msg)
+    ElMessage.success(res.msg || '删除成功')
     getUserDataList()
   } catch (e) {
-    if (e.msg !== 'cancel') {
-      ElMessage.error('删除失败：' + e.msg)
+    // 关键修改：兼容取消操作和不同错误格式
+    if (e !== 'cancel' && e.msg !== 'cancel') {
+      const errMsg = e.response?.data?.msg || e.message || '删除失败'
+      ElMessage.error(errMsg)
     }
   }
 }
@@ -213,11 +236,12 @@ const batchDelete = async () => {
       type: 'warning'
     })
     const res = await request.delete(`/data/batch?ids=${selectedIds.value.join(',')}`)
-    ElMessage.success(res.msg)
+    ElMessage.success(res.msg || '批量删除成功')
     getUserDataList()
   } catch (e) {
-    if (e.msg !== 'cancel') {
-      ElMessage.error('批量删除失败：' + e.msg)
+    if (e !== 'cancel' && e.msg !== 'cancel') {
+      const errMsg = e.response?.data?.msg || e.message || '批量删除失败'
+      ElMessage.error(errMsg)
     }
   }
 }
@@ -228,6 +252,10 @@ const handleUpload = () => {
   uploadForm.experimentId = ''
   fileList.value = []
   selectedFile.value = null
+  // 关键修改：重置表单验证状态
+  if (uploadFormRef.value) {
+    uploadFormRef.value.clearValidate()
+  }
 }
 
 // 文件变化
@@ -238,43 +266,30 @@ const handleFileChange = (file) => {
 
 // 提交上传
 const submitUpload = async () => {
-  if (!uploadForm.experimentId) {
-    ElMessage.warning('请选择关联实验')
-    return
-  }
-  if (!selectedFile.value) {
-    ElMessage.warning('请选择CSV文件')
-    return
-  }
-
-  const formData = new FormData()
-  formData.append('experimentId', uploadForm.experimentId)
-  formData.append('file', selectedFile.value)
-
+  // 关键修改：使用表单验证
+  if (!uploadFormRef.value) return
   try {
+    await uploadFormRef.value.validate()
+    // 验证通过后提交
+    const formData = new FormData()
+    formData.append('experimentId', uploadForm.experimentId)
+    formData.append('file', selectedFile.value)
+
     const res = await request.post('/data/import', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
     })
-    ElMessage.success(res.msg)
+    ElMessage.success(res.msg || '上传成功')
     uploadDialogVisible.value = false
     getUserDataList()
   } catch (e) {
-    ElMessage.error('上传失败：' + e.msg)
+    // 表单验证失败不提示错误
+    if (e.name === 'ValidationError') return
+    // 接口请求失败提示
+    const errMsg = e.response?.data?.msg || e.message || '上传失败'
+    ElMessage.error(errMsg)
   }
-}
-
-// 上传前置操作（弃用，改用弹窗上传）
-const beforeUpload = (file) => {
-  uploadDialogVisible.value = true
-  return false
-}
-const uploadSuccess = (res) => {
-  ElMessage.success('上传成功')
-}
-const uploadError = (err) => {
-  ElMessage.error('上传失败')
 }
 
 // 初始化
@@ -302,5 +317,24 @@ onMounted(() => {
 }
 .dialog-footer {
   text-align: right;
+}
+
+/* 关键修改：调整下拉框宽度，解决宽度不足问题 */
+/* 搜索栏的关联实验下拉框 */
+:deep(.search-form .el-select) {
+  width: 250px; /* 可根据需求调整，比如220px/300px */
+  /* 也可设置最小宽度：min-width: 220px; */
+}
+/* 搜索栏下拉选项面板 */
+:deep(.search-form .el-select-dropdown) {
+  min-width: 280px; /* 面板宽度略大于输入框，避免长名称截断 */
+}
+
+/* 上传弹窗中的关联实验下拉框 */
+:deep(.el-dialog .el-select) {
+  width: 100%; /* 占满父容器，最大化利用弹窗空间 */
+}
+:deep(.el-dialog .el-select-dropdown) {
+  min-width: 300px; /* 弹窗内下拉面板宽度适配 */
 }
 </style>

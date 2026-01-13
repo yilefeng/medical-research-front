@@ -47,7 +47,7 @@ import { ref, reactive, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { login } from '@/api/login'
-import { setToken } from '@/utils/auth'
+import {setToken, setUserInfo} from '@/utils/auth'
 
 const router = useRouter()
 const loginFormRef = ref(null)
@@ -83,6 +83,7 @@ const handleLogin = async () => {
     }
 
     setToken(res.data.token)
+    setUserInfo(res.data.user)
     ElMessage.success('登录成功，即将跳转首页')
 
     setTimeout(() => {

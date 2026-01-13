@@ -25,7 +25,9 @@
           <el-icon><Files /></el-icon>
           <template #title>报告管理</template>
         </el-menu-item>
-        <el-sub-menu index="system">
+
+        <!-- 只有管理员才显示系统管理模块 -->
+        <el-sub-menu v-if="isAdmin" index="system">
           <template #title>
             <el-icon><Setting /></el-icon>
             <span>系统管理</span>
@@ -34,6 +36,7 @@
           <el-menu-item index="/home/sys/role">角色管理</el-menu-item>
           <el-menu-item index="/home/sys/oper/log">操作日志</el-menu-item>
         </el-sub-menu>
+
         <el-menu-item index="logout" @click="handleLogout">
           <el-icon><SwitchButton /></el-icon>
           <template #title>退出登录</template>
@@ -53,7 +56,7 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <span>欢迎回来，管理员</span>
+        <span>欢迎回来，{{ userInfo.username || '用户' }}</span>
       </el-header>
 
       <el-main>
@@ -71,13 +74,25 @@ import {
   Document, DataAnalysis, Files, FolderOpened,
   Setting, SwitchButton
 } from '@element-plus/icons-vue'
-import { removeToken } from '@/utils/auth'
+import { removeToken, getUserInfo } from '@/utils/auth'
 
 const router = useRouter()
 const route = useRoute()
 
 // 当前激活的菜单路径
 const activePath = ref(route.path)
+// 用户信息
+const userInfo = ref({})
+
+// 计算属性：检查是否为管理员
+const isAdmin = computed(() => {
+  return userInfo.value && userInfo.value.roleCode === 'admin'
+})
+
+// 获取用户信息
+const queryUserInfo = () => {
+    userInfo.value = getUserInfo()
+}
 
 // 菜单选择事件
 const handleMenuSelect = (index) => {
@@ -106,6 +121,9 @@ const handleLogout = () => {
 
 // 路由变化时更新激活菜单
 onMounted(() => {
+  // 获取用户信息
+  queryUserInfo()
+
   router.afterEach((to) => {
     activePath.value = to.path
   })
