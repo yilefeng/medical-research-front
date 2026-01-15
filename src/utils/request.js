@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getToken, removeToken } from '@/utils/auth'
+import { getToken, removeToken, setToken } from '@/utils/auth' // 新增引入setToken
 import router from '@/router'
 
 // 创建axios实例
@@ -15,7 +15,7 @@ service.interceptors.request.use(
         // 添加token
         const token = getToken()
         if (token) {
-            config.headers['token'] = token
+            config.headers['Authorization'] = 'Bearer ' + token
         }
         return config
     },
@@ -28,6 +28,13 @@ service.interceptors.request.use(
 // 响应拦截器
 service.interceptors.response.use(
     response => {
+        // ======================== 新增：处理响应头中的new-token ========================
+        // 浏览器会将响应头的Key转为小写，所以取new-token（对应后端返回的New-Token）
+        const newToken = response.headers['new-token']
+        if (newToken) {
+            setToken(newToken) // 更新本地Token
+            console.log('Token续期成功，已更新本地Token')
+        }
 
         // 处理 Blob 类型响应（如文件下载）
         if (response.data instanceof Blob) {
