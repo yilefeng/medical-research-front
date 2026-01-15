@@ -26,6 +26,11 @@
           <template #title>报告管理</template>
         </el-menu-item>
 
+        <el-menu-item index="/home/user/center">
+          <el-icon><Files /></el-icon>
+          <template #title>个人中心</template>
+        </el-menu-item>
+
         <!-- 只有管理员才显示系统管理模块 -->
         <el-sub-menu v-if="isAdmin" index="system">
           <template #title>

@@ -9,8 +9,7 @@ import ExperimentPlan from '@/views/experiment/ExperimentPlan.vue'
 import ResearchData from '@/views/research/ResearchData.vue'
 import ReportManage from '@/views/report/ReportManage.vue'
 import AnalysisManage from '@/views/report/AnalysisManage.vue'
-import AnalysisReport from '@/views/report/AnalysisReport.vue'
-import DataSource from '@/views/dataSource/DataSource.vue'
+import UserCenter from '@/views/user/UserCenter.vue'
 import SysUser from '@/views/system/SysUser.vue'
 import SysRole from '@/views/system/SysRole.vue'
 import SysOperLog from '@/views/system/SysOperLog.vue'
@@ -35,7 +34,7 @@ const routes = [
             { path: 'research/data', name: 'ResearchData', component: ResearchData, meta: { title: '科研数据管理' } },
             { path: 'analysis/manage', name: 'AnalysisManage', component: AnalysisManage, meta: { title: '统计分析' } },
             { path: 'report/manage', name: 'ReportManage', component: ReportManage, meta: { title: '报告管理' } },
-            // { path: 'data/source', name: 'DataSource', component: DataSource, meta: { title: '数据源管理' } },
+            { path: 'user/center', name: 'UserCenter', component: UserCenter, meta: { title: '个人中心' }},
             { path: 'sys/user', name: 'SysUser', component: SysUser, meta: { title: '用户管理' } },
             { path: 'sys/role', name: 'SysRole', component: SysRole, meta: { title: '角色管理' } },
             { path: 'sys/oper/log', name: 'SysOperLog', component: SysOperLog, meta: { title: '操作日志' } }

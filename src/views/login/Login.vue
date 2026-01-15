@@ -47,18 +47,20 @@ import { ref, reactive, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { login } from '@/api/login'
-import {setToken, setUserInfo} from '@/utils/auth'
+import { setToken, setUserInfo } from '@/utils/auth'
+import { aesEncrypt, aesDecrypt } from '@/utils/aes'
 
 const router = useRouter()
 const loginFormRef = ref(null)
 const usernameInputRef = ref(null)
 
-// 使用 reactive 替代 ref 包裹对象
+// 登录表单
 const loginForm = reactive({
   username: '',
   password: ''
 })
 
+// 校验规则
 const loginRules = reactive({
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
@@ -66,6 +68,7 @@ const loginRules = reactive({
 
 const isLoading = ref(false)
 
+// ========== 登录逻辑 ==========
 const handleLogin = async () => {
   if (isLoading.value) return
 
@@ -73,11 +76,20 @@ const handleLogin = async () => {
     await loginFormRef.value.validate()
     isLoading.value = true
 
-    console.log('登录表单数据:', loginForm)
-    const res = await login(loginForm)
+    console.log('原始密码:', loginForm.password)
+    // 用AES加密密码（核心修改）
+    const encryptPwd = aesEncrypt(loginForm.password)
+    // console.log('AES加密后密码:', encryptPwd)
+    // 测试解密（前端验证用，后端需执行相同解密逻辑）
+    // console.log('AES解密还原:', aesDecrypt(encryptPwd))
+
+    // 发送登录请求（传输加密后的密码）
+    const res = await login({
+      username: loginForm.username,
+      password: encryptPwd // 传AES加密后的密码
+    })
 
     if (!res || !res.data || !res.data.token) {
-      console.log('登录失败：未获取到有效Token',  res)
       ElMessage.error('登录失败：未获取到有效Token')
       return
     }
@@ -106,7 +118,7 @@ const handleLogin = async () => {
   }
 }
 
-// 页面加载完成后聚焦用户名输入框
+// 页面加载聚焦用户名输入框
 nextTick(() => {
   if (usernameInputRef.value && typeof usernameInputRef.value.focus === 'function') {
     usernameInputRef.value.focus()

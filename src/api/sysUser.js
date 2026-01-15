@@ -50,3 +50,26 @@ export const resetPassword = (id) => {
         method: 'put'
     })
 }
+
+export const changePassword = (data) => {
+    return request({
+        url: '/sys/user/change/password',
+        method: 'post',
+        data
+    })
+}
+
+export const getUserInfo = () => {
+    return request({
+        url: '/sys/user/info',
+        method: 'get'
+    })
+}
+
+export const updateUserInfo = (data) => {
+    return request({
+        url: '/sys/user/info',
+        method: 'put',
+        data
+    })
+}
