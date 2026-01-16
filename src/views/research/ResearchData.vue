@@ -4,7 +4,6 @@
       <div class="card-header">
         <el-form :inline="true" :model="searchForm" class="search-form">
           <el-form-item label="关联实验">
-            <!-- 关键修改：添加@change事件，选择后自动查询 -->
             <el-select
                 v-model="searchForm.experimentId"
                 placeholder="请选择实验"
@@ -20,19 +19,11 @@
             </el-select>
           </el-form-item>
           <el-form-item>
-<!--            <el-button type="primary" @click="getUserDataList">查询</el-button>-->
             <el-button @click="resetSearch">重置</el-button>
           </el-form-item>
         </el-form>
         <div class="upload-btn">
-          <el-upload
-              class="upload-demo"
-              action="#"
-              :auto-upload="false"
-              ref="uploadRef"
-          >
-            <el-button type="success" @click="handleUpload">上传CSV数据</el-button>
-          </el-upload>
+          <el-button type="success" @click="handleUpload">上传CSV数据</el-button>
           <el-button type="danger" @click="batchDelete" :disabled="selectedIds.length === 0">批量删除</el-button>
         </div>
       </div>
@@ -70,8 +61,7 @@
     </el-card>
 
     <!-- 上传数据弹窗 -->
-    <el-dialog title="上传CSV科研数据" v-model="uploadDialogVisible" width="500px">
-      <!-- 关键修改：添加表单验证规则 -->
+    <el-dialog title="上传CSV科研数据" v-model="uploadDialogVisible" width="500px" @close="handleDialogClose">
       <el-form
           :model="uploadForm"
           label-width="100px"
@@ -93,9 +83,12 @@
               class="upload-demo"
               :auto-upload="false"
               :on-change="handleFileChange"
+              :on-remove="handleFileRemove"
               :file-list="fileList"
               accept=".csv"
               ref="fileUploadRef"
+              :limit="1"
+              :before-upload="beforeFileUpload"
           >
             <el-button type="primary">选择文件</el-button>
             <div slot="tip" class="el-upload__tip">请上传后缀为.csv的文件，大小不超过10MB</div>
@@ -105,7 +98,7 @@
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="uploadDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitUpload">确认上传</el-button>
+          <el-button type="primary" @click="submitUpload" :loading="uploadLoading">确认上传</el-button>
         </div>
       </template>
     </el-dialog>
@@ -135,20 +128,32 @@ const uploadDialogVisible = ref(false)
 const uploadForm = reactive({
   experimentId: ''
 })
-// 关键修改：上传表单验证规则
+//完善表单验证规则
 const uploadFormRules = reactive({
   experimentId: [
     { required: true, message: '请选择关联实验', trigger: 'change' }
   ],
   file: [
-    { required: true, message: '请选择CSV文件', trigger: 'change' }
+    {
+      required: true,
+      message: '请选择CSV文件',
+      trigger: ['change', 'blur'],  // 增加blur触发，确保校验更全面
+      validator: (rule, value, callback) => {
+        if (fileList.value.length === 0) {
+          callback(new Error('请选择CSV文件'))
+        } else {
+          callback()
+        }
+      }
+    }
   ]
 })
 const fileList = ref([])
 const uploadFormRef = ref(null)
 const fileUploadRef = ref(null)
-const uploadRef = ref(null)
 const selectedFile = ref(null)
+//增加上传加载状态，防止重复提交
+const uploadLoading = ref(false)
 
 // 获取实验列表
 const getExperimentList = async () => {
@@ -159,11 +164,17 @@ const getExperimentList = async () => {
         pageSize: 10000
       }
     })
-    experimentList.value = res.data.records
+    // 优化：校验返回数据格式，避免空数据导致下拉框异常
+    if (res.data && Array.isArray(res.data.records)) {
+      experimentList.value = res.data.records
+    } else {
+      experimentList.value = []
+      ElMessage.warning('实验列表为空，请先创建实验')
+    }
   } catch (e) {
-    // 关键修改：兼容不同错误信息格式
     const errMsg = e.response?.data?.msg || e.message || '获取实验列表失败'
     ElMessage.error(errMsg)
+    experimentList.value = []
   }
 }
 
@@ -177,12 +188,19 @@ const getUserDataList = async () => {
         pageSize: pageSize.value
       }
     })
-    dataList.value = res.data.records
-    total.value = res.data.total
+    // 优化：校验返回数据格式
+    if (res.data) {
+      dataList.value = res.data.records || []
+      total.value = res.data.total || 0
+    } else {
+      dataList.value = []
+      total.value = 0
+    }
   } catch (e) {
-    // 关键修改：兼容不同错误信息格式
     const errMsg = e.response?.data?.msg || e.message || '获取数据列表失败'
     ElMessage.error(errMsg)
+    dataList.value = []
+    total.value = 0
   }
 }
 
@@ -204,24 +222,28 @@ const handleSelectionChange = (val) => {
 // 重置搜索
 const resetSearch = () => {
   searchForm.experimentId = ''
+  currentPage.value = 1
   getUserDataList()
 }
 
 // 单个删除
 const deleteSingle = async (id) => {
   try {
-    await ElMessageBox.confirm('确定要删除该条数据吗？', '提示', {
+    await ElMessageBox.confirm('确定要删除该条数据吗？删除后不可恢复！', '删除确认', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     })
     const res = await request.delete(`/data/${id}`)
-    ElMessage.success(res.msg || '删除成功')
+    // 优化：删除后处理分页（如果当前页只剩1条数据，删除后跳上一页）
+    if (dataList.value.length === 1 && currentPage.value > 1) {
+      currentPage.value -= 1
+    }
+    ElMessage.success(res?.msg || '删除成功')
     getUserDataList()
   } catch (e) {
-    // 关键修改：兼容取消操作和不同错误格式
-    if (e !== 'cancel' && e.msg !== 'cancel') {
-      const errMsg = e.response?.data?.msg || e.message || '删除失败'
+    if (e !== 'cancel' && e?.msg !== 'cancel' && !e?.toString().includes('cancel')) {
+      const errMsg = e?.response?.data?.msg || e?.message || '删除失败'
       ElMessage.error(errMsg)
     }
   }
@@ -230,17 +252,19 @@ const deleteSingle = async (id) => {
 // 批量删除
 const batchDelete = async () => {
   try {
-    await ElMessageBox.confirm('确定要批量删除选中的数据吗？', '提示', {
+    await ElMessageBox.confirm('确定要批量删除选中的数据吗？删除后不可恢复！', '批量删除确认', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     })
     const res = await request.delete(`/data/batch?ids=${selectedIds.value.join(',')}`)
-    ElMessage.success(res.msg || '批量删除成功')
+    // 优化：批量删除后回到第一页（避免删除后分页无数据）
+    currentPage.value = 1
+    ElMessage.success(res?.msg || '批量删除成功')
     getUserDataList()
   } catch (e) {
-    if (e !== 'cancel' && e.msg !== 'cancel') {
-      const errMsg = e.response?.data?.msg || e.message || '批量删除失败'
+    if (e !== 'cancel' && e?.msg !== 'cancel' && !e?.toString().includes('cancel')) {
+      const errMsg = e?.response?.data?.msg || e?.message || '批量删除失败'
       ElMessage.error(errMsg)
     }
   }
@@ -248,47 +272,133 @@ const batchDelete = async () => {
 
 // 打开上传弹窗
 const handleUpload = () => {
+  // 前置校验：确保有实验可关联
+  if (experimentList.value.length === 0) {
+    ElMessage.warning('暂无可用实验，请先创建实验后再上传数据')
+    return
+  }
   uploadDialogVisible.value = true
+  // 重置表单状态
   uploadForm.experimentId = ''
   fileList.value = []
   selectedFile.value = null
-  // 关键修改：重置表单验证状态
+  uploadLoading.value = false
   if (uploadFormRef.value) {
     uploadFormRef.value.clearValidate()
   }
+  if (fileUploadRef.value) {
+    fileUploadRef.value.clearFiles()  // 清空文件选择器的缓存
+  }
 }
 
-// 文件变化
+//文件选择变化 - 增加格式/大小校验
 const handleFileChange = (file) => {
+  // 强制只保留一个文件
   fileList.value = [file]
   selectedFile.value = file.raw
+
+  //校验文件格式（兜底，即使设置了accept也做校验）
+  const fileName = file.name
+  if (!fileName.endsWith('.csv')) {
+    ElMessage.error('请选择后缀为.csv的文件！')
+    fileList.value = []
+    selectedFile.value = null
+    return
+  }
+
+  //校验文件大小（10MB = 10 * 1024 * 1024 = 10485760 字节）
+  const fileSize = file.size
+  const maxSize = 10 * 1024 * 1024
+  if (fileSize > maxSize) {
+    ElMessage.error('文件大小不能超过10MB，请重新选择！')
+    fileList.value = []
+    selectedFile.value = null
+    return
+  }
+}
+
+// 文件移除事件 - 清空选中文件
+const handleFileRemove = () => {
+  fileList.value = []
+  selectedFile.value = null
+  // 重置文件字段的校验状态
+  if (uploadFormRef.value) {
+    uploadFormRef.value.clearValidate('file')
+  }
+}
+
+//文件上传前校验（兜底）
+const beforeFileUpload = (file) => {
+  const fileName = file.name
+  const fileSize = file.size
+  const maxSize = 10 * 1024 * 1024
+
+  if (!fileName.endsWith('.csv')) {
+    ElMessage.error('仅支持上传.csv格式的文件！')
+    return false
+  }
+  if (fileSize > maxSize) {
+    ElMessage.error('文件大小不能超过10MB！')
+    return false
+  }
+  return true
+}
+
+//弹窗关闭时清理状态
+const handleDialogClose = () => {
+  fileList.value = []
+  selectedFile.value = null
+  uploadLoading.value = false
+  if (uploadFormRef.value) {
+    uploadFormRef.value.clearValidate()
+  }
+  if (fileUploadRef.value) {
+    fileUploadRef.value.clearFiles()
+  }
 }
 
 // 提交上传
 const submitUpload = async () => {
-  // 关键修改：使用表单验证
   if (!uploadFormRef.value) return
+
   try {
+    // 1. 表单验证
     await uploadFormRef.value.validate()
-    // 验证通过后提交
+    // 2. 二次校验文件（兜底）
+    if (!selectedFile.value) {
+      ElMessage.error('请选择要上传的CSV文件！')
+      return
+    }
+
+    uploadLoading.value = true
+    // 3. 构造FormData
     const formData = new FormData()
     formData.append('experimentId', uploadForm.experimentId)
     formData.append('file', selectedFile.value)
 
+    // 4. 提交上传请求
     const res = await request.post('/data/import', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
-      }
+      },
+      // 增加超时配置
+      timeout: 60000  // 60秒超时（适配大文件上传）
     })
-    ElMessage.success(res.msg || '上传成功')
+
+    ElMessage.success(res?.msg || 'CSV数据上传成功！')
     uploadDialogVisible.value = false
+    // 5. 上传成功后刷新数据列表（回到第一页）
+    currentPage.value = 1
     getUserDataList()
   } catch (e) {
-    // 表单验证失败不提示错误
-    if (e.name === 'ValidationError') return
-    // 接口请求失败提示
-    const errMsg = e.response?.data?.msg || e.message || '上传失败'
+    // 表单验证失败不提示
+    if (e?.name === 'ValidationError') return
+    // 上传失败提示
+    const errMsg = e?.response?.data?.msg || e?.message || 'CSV数据上传失败，请稍后重试！'
     ElMessage.error(errMsg)
+  } finally {
+    // 无论成功失败，都关闭加载状态
+    uploadLoading.value = false
   }
 }
 
@@ -319,22 +429,31 @@ onMounted(() => {
   text-align: right;
 }
 
-/* 关键修改：调整下拉框宽度，解决宽度不足问题 */
-/* 搜索栏的关联实验下拉框 */
+/* 下拉框样式优化 */
 :deep(.search-form .el-select) {
-  width: 250px; /* 可根据需求调整，比如220px/300px */
-  /* 也可设置最小宽度：min-width: 220px; */
+  width: 250px;
+  min-width: 220px;
 }
-/* 搜索栏下拉选项面板 */
 :deep(.search-form .el-select-dropdown) {
-  min-width: 280px; /* 面板宽度略大于输入框，避免长名称截断 */
+  min-width: 280px;
 }
-
-/* 上传弹窗中的关联实验下拉框 */
 :deep(.el-dialog .el-select) {
-  width: 100%; /* 占满父容器，最大化利用弹窗空间 */
+  width: 100%;
 }
 :deep(.el-dialog .el-select-dropdown) {
-  min-width: 300px; /* 弹窗内下拉面板宽度适配 */
+  min-width: 300px;
+}
+
+/* 优化：表格空数据样式（补充验收细节） */
+:deep(.el-table__empty-text) {
+  color: #909399;
+  font-size: 14px;
+}
+
+/* 优化：按钮交互样式 */
+:deep(.el-button--text) {
+  &:hover {
+    color: #f78989 !important;
+  }
 }
 </style>
