@@ -52,37 +52,16 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="operDesc" label="操作描述" min-width="200"></el-table-column>
+        <el-table-column prop="operContent" label="操作描述" min-width="200">
+          <template #default="scope">
+            <!-- 显示完整内容，点击可查看详细信息 -->
+            <div class="oper-content-cell" @click="showOperContentDetail(scope.row)">
+              {{ scope.row.operContent || '无' }}
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="operIp" label="操作IP" width="150"></el-table-column>
-        <el-table-column
-            label="操作时间"
-            prop="operTime"
-            width="200">
-          <template #default="scope">
-            {{ scope.row.operTime | formatTime }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="operResult" label="操作结果" width="100">
-          <template #default="scope">
-            <el-tag :type="scope.row.operResult === '成功' ? 'success' : 'danger'">
-              {{ scope.row.operResult }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="errorMsg" label="错误信息" min-width="200">
-          <template #default="scope">
-            <el-popover
-                placement="top"
-                width="400"
-                trigger="hover"
-                :content="scope.row.errorMsg || '无'"
-            >
-              <template #reference>
-                <span>{{ scope.row.errorMsg ? scope.row.errorMsg.substring(0, 20) + '...' : '无' }}</span>
-              </template>
-            </el-popover>
-          </template>
-        </el-table-column>
+        <el-table-column label="操作时间" prop="operTime" width="200"></el-table-column>
       </el-table>
 
       <!-- 分页 -->
@@ -98,6 +77,19 @@
       ></el-pagination>
     </el-card>
   </div>
+
+  <!-- 操作详情弹窗 -->
+  <el-dialog
+      v-model="contentDialogVisible"
+      title="操作详情"
+      width="600px"
+      append-to-body
+      :close-on-click-modal="false"
+  >
+    <div class="content-detail-container">
+      <p><strong>操作内容：</strong>{{ currentContent }}</p>
+    </div>
+  </el-dialog>
 </template>
 
 <script setup>
@@ -187,10 +179,44 @@ const getOperTypeTagType = (type) => {
   }
   return typeMap[type] || 'default'
 }
+
+// 新增状态变量
+const contentDialogVisible = ref(false)
+const currentContent = ref('')
+
+// 显示操作内容详情
+const showOperContentDetail = (row) => {
+  currentContent.value = row.operContent || '无'
+  contentDialogVisible.value = true
+}
+
+// 弹窗关闭时清理
+const handleContentDialogClose = () => {
+  contentDialogVisible.value = false
+}
 </script>
 
 <style scoped>
 .sys-oper-log-container {
   padding: 10px;
+}
+/* 添加样式 */
+.content-detail-container {
+  padding: 20px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.oper-content-cell {
+  cursor: pointer;
+  color: #409eff;
+  text-decoration: underline;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oper-content-cell:hover {
+  color: #66b1ff;
 }
 </style>
