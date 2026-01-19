@@ -52,9 +52,9 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
     // 设置页面标题
     if (to.meta.title) {
-        document.title = to.meta.title + ' - 深影科研平台'
+        document.title = to.meta.title + ' - 深科睿研统计管理系统'
     } else {
-        document.title = '深影科研平台'
+        document.title = '深睿科研统计管理系统'
     }
 
     // 登录验证

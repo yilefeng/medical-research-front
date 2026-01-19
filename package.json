@@ -9,10 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
     "axios": "^1.6.8",
     "crypto-js": "^4.2.0",
     "element-plus": "^2.6.3",
     "jszip": "^3.10.1",
+    "pdfjs-dist": "^5.4.530",
     "vue": "^3.4.21",
     "vue-echarts": "^8.0.1",
     "vue-router": "^4.3.0",
