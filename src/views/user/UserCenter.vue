@@ -49,7 +49,7 @@
               <el-input
                   v-model="pwdForm.newPassword"
                   type="password"
-                  placeholder="请输入新密码（6-20位）"
+                  placeholder="请输入新密码（6-20位）,必须包含字母、数字和特殊字符"
                   show-password
               ></el-input>
             </el-form-item>
@@ -132,13 +132,32 @@ const pwdRules = ref({
   ],
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, max: 20, message: '密码长度应在6-20个字符之间', trigger: 'blur' },
+    {
+      min: 6,
+      max: 20,
+      message: '密码长度应在6-20个字符之间，必须包含字母、数字和特殊字符',
+      trigger: 'blur'
+    },
     {
       validator: (rule, value, callback) => {
-        if (value === pwdForm.oldPassword) {
-          callback(new Error('新密码不能与原密码相同'))
-        } else {
-          callback()
+        // 1. 校验是否包含字母、数字、特殊字符
+        // 正则说明：
+        // (?=.*[a-zA-Z])：必须包含至少一个字母（大小写均可）
+        // (?=.*\d)：必须包含至少一个数字
+        // (?=.*[!@#$%^&*()_+\-=\[\]{}|;':",./<>?])：必须包含至少一个指定的特殊字符
+        // .{6,20}：整体长度6-20位
+        const passwordReg = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{}|;':",./<>?]).{6,20}$/;
+
+        if (!passwordReg.test(value)) {
+          callback(new Error('密码必须包含字母、数字和特殊字符（!@#$%^&*()_+-=[]{}|;:\'",./<>?）'));
+        }
+        // 2. 校验新密码是否与原密码相同
+        else if (value === pwdForm.oldPassword) {
+          callback(new Error('新密码不能与原密码相同'));
+        }
+        // 3. 校验通过
+        else {
+          callback();
         }
       },
       trigger: 'blur'

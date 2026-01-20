@@ -295,7 +295,7 @@ const deleteUser = (id) => {
 // 重置密码
 const resetPassword = (id) => {
   ElMessageBox.confirm(
-      '确定要重置该用户的密码吗？重置后密码为123456',
+      '确定要重置该用户的密码吗？重置后密码为dw@123',
       '提示',
       {
         type: 'warning'

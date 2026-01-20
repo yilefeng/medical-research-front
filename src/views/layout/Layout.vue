@@ -11,11 +11,11 @@
       >
         <el-menu-item index="/home/experiment/plan">
           <el-icon><Document /></el-icon>
-          <template #title>实验方案管理</template>
+          <template #title>实验方案</template>
         </el-menu-item>
         <el-menu-item index="/home/research/data">
           <el-icon><DataAnalysis /></el-icon>
-          <template #title>科研数据管理</template>
+          <template #title>科研数据</template>
         </el-menu-item>
         <el-menu-item index="/home/analysis/manage">
           <el-icon><Files /></el-icon>

@@ -19,7 +19,7 @@
             <el-form-item label="检验方法" prop="testMethod" required>
               <el-select v-model="analysisForm.testMethod" placeholder="请选择检验方法" clearable>
                 <el-option label="DeLong检验（AUC比较）" value="DeLong检验" />
-                <el-option label="单独AUC计算" value="AUC计算" />
+<!--                <el-option label="单独AUC计算" value="AUC计算" />-->
               </el-select>
             </el-form-item>
           </el-col>
@@ -32,8 +32,8 @@
         <el-row :gutter="20" style="margin-top: 20px;">
           <el-col :span="24">
             <el-form-item>
-              <el-button type="primary" @click="openDataDialog">选择科研数据</el-button>
-              <el-button type="success" @click="executeAnalysis" :disabled="!dataSelected">执行统计分析</el-button>
+<!--              <el-button type="primary" @click="openDataDialog">选择科研数据</el-button>-->
+              <el-button type="success" @click="executeAnalysis">执行统计分析</el-button>
               <el-button type="info" @click="resetForm">重置表单</el-button>
             </el-form-item>
           </el-col>
@@ -334,6 +334,10 @@ const confirmDataSelection = () => {
 
 // 执行统计分析
 const executeAnalysis = async () => {
+  if (!analysisForm.experimentId) {
+    ElMessage.warning('请先选择关联实验')
+    return
+  }
   if (!analysisForm.testMethod || !analysisForm.reportName) {
     ElMessage.warning('请完善表单必填项')
     return
@@ -347,6 +351,8 @@ const executeAnalysis = async () => {
   } catch (e) {
     ElMessage.error('分析失败：' + (e.msg || e.message))
   } finally {
+    analysisForm.testMethod = ''
+    analysisForm.reportName = ''
     resultLoading.value = false
   }
 }
@@ -368,8 +374,8 @@ const getOptions = computed(() => {
 
   return {
     title: {
-      text: 'ROC曲线（受试者工作特征曲线）',
-      subtext: '基于选中科研数据计算',
+      text: 'ROC曲线',
+      subtext: '基于科研数据计算',
       left: 'center',
       textStyle: {
         fontSize: 18,
