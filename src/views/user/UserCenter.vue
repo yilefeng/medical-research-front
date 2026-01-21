@@ -99,10 +99,13 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getUserInfo, // 获取当前登录用户信息
   updateUserInfo, // 更新个人信息
-  changePassword, ROLE_OPTIONS, DEPARTMENT_OPTIONS, TITLE_OPTIONS // 修改密码
+  changePassword,  initDepartmentOptions, initTitleOptions // 修改密码
 } from '@/api/sysUser'
 
 import { aesEncrypt, aesDecrypt } from '@/utils/aes'
+
+const TITLE_OPTIONS = ref([])
+const DEPARTMENT_OPTIONS = ref([])
 
 // 激活的标签页
 const activeTab = ref('info')
@@ -201,8 +204,10 @@ const pwdRules = ref({
 })
 
 // 页面加载时获取当前用户信息
-onMounted(() => {
-  getCurrentUserInfo()
+onMounted(async () => {
+  DEPARTMENT_OPTIONS.value = await initDepartmentOptions()
+  TITLE_OPTIONS.value =  await initTitleOptions()
+  await getCurrentUserInfo()
 })
 
 // 获取当前用户信息

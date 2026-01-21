@@ -157,9 +157,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getUserPage, createUser, updateUser,
   resetPassword as resetPasswordApi, getUserById,
-  DEPARTMENT_OPTIONS, TITLE_OPTIONS, ROLE_OPTIONS,
+  initDepartmentOptions, initTitleOptions, ROLE_OPTIONS,
   getRoleName, getTitleName,getDepartmentName
 } from '@/api/sysUser'
+
+const TITLE_OPTIONS = ref([])
+const DEPARTMENT_OPTIONS = ref([])
 
 // 查询参数
 const queryParams = ref({
@@ -218,8 +221,10 @@ const formRules = ref({
 })
 
 // 页面加载时获取列表
-onMounted(() => {
-  getUserList()
+onMounted(async () => {
+  await getUserList()
+  DEPARTMENT_OPTIONS.value = await initDepartmentOptions()
+  TITLE_OPTIONS.value =  await initTitleOptions()
 })
 
 // 获取用户列表
@@ -291,6 +296,8 @@ const resetForm = () => {
     phone: '',
     email: '',
     roleId: '',
+    departmentCode : '',
+    titleCode : '',
     status: 1
   })
 }
