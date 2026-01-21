@@ -38,7 +38,7 @@
             <span>系统管理</span>
           </template>
           <el-menu-item index="/home/sys/user">用户管理</el-menu-item>
-          <el-menu-item index="/home/sys/role">角色管理</el-menu-item>
+<!--          <el-menu-item index="/home/sys/role">角色管理</el-menu-item>-->
           <el-menu-item index="/home/sys/oper/log">操作日志</el-menu-item>
         </el-sub-menu>
 

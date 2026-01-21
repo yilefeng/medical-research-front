@@ -36,6 +36,21 @@
         <el-table-column prop="realName" label="真实姓名" width="120"></el-table-column>
         <el-table-column prop="phone" label="手机号" width="150"></el-table-column>
         <el-table-column prop="email" label="邮箱" width="200"></el-table-column>
+        <el-table-column prop="roleId" label="角色" width="120">
+          <template #default="scope">
+            {{ getRoleName(scope.row.roleId) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="departmentCode" label="科室" width="150">
+          <template #default="scope">
+            {{ getDepartmentName(scope.row.departmentCode) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="titleCode" label="职称" width="120">
+          <template #default="scope">
+            {{ getTitleName(scope.row.titleCode) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
           <template #default="scope">
             <el-tag :type="scope.row.status === 1 ? 'success' : 'danger'">
@@ -93,8 +108,32 @@
         </el-form-item>
         <el-form-item label="角色" prop="roleId">
           <el-select v-model="formData.roleId" placeholder="请选择角色">
-            <el-option label="管理员" :value="1"></el-option>
-            <el-option label="科研人员" :value="2"></el-option>
+            <el-option
+                v-for="role in ROLE_OPTIONS"
+                :key="role.value"
+                :label="role.label"
+                :value="role.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="科室" prop="departmentCode">
+          <el-select v-model="formData.departmentCode" placeholder="请选择科室">
+            <el-option
+                v-for="dept in DEPARTMENT_OPTIONS"
+                :key="dept.value"
+                :label="dept.label"
+                :value="dept.value">
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="职称" prop="titleCode">
+          <el-select v-model="formData.titleCode" placeholder="请选择职称">
+            <el-option
+                v-for="title in TITLE_OPTIONS"
+                :key="title.value"
+                :label="title.label"
+                :value="title.value">
+            </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="状态" prop="status">
@@ -117,7 +156,9 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getUserPage, createUser, updateUser,
-  deleteUser as deleteUserApi, resetPassword as resetPasswordApi, getUserById
+  resetPassword as resetPasswordApi, getUserById,
+  DEPARTMENT_OPTIONS, TITLE_OPTIONS, ROLE_OPTIONS,
+  getRoleName, getTitleName,getDepartmentName
 } from '@/api/sysUser'
 
 // 查询参数
@@ -146,8 +187,10 @@ const formData = reactive({
   realName: '',
   phone: '',
   email: '',
+  departmentCode : '',
+  titleCode : '',
   roleId: 1,
-  status: 1
+  status: 1,
 })
 
 // 表单校验规则
@@ -301,7 +344,7 @@ const resetPassword = (id) => {
         type: 'warning'
       }
   ).then(async () => {
-    const res = await resetPassword(id)
+    const res = await resetPasswordApi(id)
     ElMessage.success(res.msg)
   }).catch(() => {
     ElMessage.info('已取消重置')

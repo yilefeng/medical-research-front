@@ -89,8 +89,13 @@ const handleLogin = async () => {
       password: encryptPwd // 传AES加密后的密码
     })
 
+    if (res.code === 500) {
+      ElMessage.error(res.msg)
+      return
+    }
+
     if (!res || !res.data || !res.data.token) {
-      ElMessage.error('登录失败：未获取到有效Token')
+      ElMessage.error('登录失败')
       return
     }
 

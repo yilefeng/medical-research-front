@@ -252,15 +252,42 @@ const manualFlipY = ref(false) // 手动垂直翻转（上下反）
 
 // ===================== 工具函数（v5.x 适配：彻底移除destroy()） =====================
 const buildFileUrl = (path, isDownload = false) => {
-  if (!path) return ''
-  if (path.startsWith('http://') || path.startsWith('https://')) {
-    return path
+  if (!path) return '';
+
+  // 验证路径，防止路径遍历攻击
+  if (path.includes('../') || path.includes('..\\')) {
+    console.warn('Invalid path detected:', path);
+    return '';
   }
-  const params = new URLSearchParams({
-    path: path,
-    download: isDownload ? 'true' : 'false'
-  })
-  return `/api/download?${params.toString()}`
+
+  let staticUrl = '';
+  // 静态路径：移除动态API参数，直接映射到Nginx配置的/pdf/路径
+  if (path.startsWith('/data/download/')) {
+    //只去掉data
+    staticUrl = path.replace(/^\/data/, '');
+  } else {
+    // 否则添加/pdf/前缀
+    staticUrl = `/download/${path.replace(/^\/+/, '')}`;
+  }
+
+  // 对于下载需求，添加download参数
+  if (isDownload) {
+    try {
+      const origin = window.location?.origin || '';
+      if (!origin) {
+        console.warn('Window location origin not available');
+        return staticUrl;
+      }
+      const url = new URL(staticUrl, origin);
+      url.searchParams.append('download', 'true');
+      return url.toString();
+    } catch (error) {
+      console.error('Error constructing download URL:', error);
+      return staticUrl;
+    }
+  }
+
+  return staticUrl;
 }
 
 /**

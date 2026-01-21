@@ -23,6 +23,26 @@
             <el-form-item label="邮箱" prop="email">
               <el-input v-model="userForm.email" placeholder="请输入邮箱"></el-input>
             </el-form-item>
+            <el-form-item label="科室" prop="departmentCode">
+              <el-select v-model="userForm.departmentCode" placeholder="请选择科室">
+                <el-option
+                    v-for="dept in DEPARTMENT_OPTIONS"
+                    :key="dept.value"
+                    :label="dept.label"
+                    :value="dept.value">
+                </el-option>
+              </el-select>
+            </el-form-item>
+            <el-form-item label="职称" prop="titleCode">
+              <el-select v-model="userForm.titleCode" placeholder="请选择职称">
+                <el-option
+                    v-for="title in TITLE_OPTIONS"
+                    :key="title.value"
+                    :label="title.label"
+                    :value="title.value">
+                </el-option>
+              </el-select>
+            </el-form-item>
             <el-form-item>
               <el-button type="primary" @click="submitUserInfo()">保存修改</el-button>
             </el-form-item>
@@ -79,7 +99,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getUserInfo, // 获取当前登录用户信息
   updateUserInfo, // 更新个人信息
-  changePassword // 修改密码
+  changePassword, ROLE_OPTIONS, DEPARTMENT_OPTIONS, TITLE_OPTIONS // 修改密码
 } from '@/api/sysUser'
 
 import { aesEncrypt, aesDecrypt } from '@/utils/aes'
@@ -97,7 +117,9 @@ const userForm = reactive({
   username: '', // 用户名（不可修改）
   realName: '', // 真实姓名
   phone: '', // 手机号
-  email: '' // 邮箱
+  email: '', // 邮箱
+  departmentCode: '', // 科室代码
+  titleCode: '', // 职称代码
 })
 
 // 密码修改表单数据
@@ -201,7 +223,9 @@ const submitUserInfo = async () => {
     const res = await updateUserInfo({
       realName: userForm.realName,
       phone: userForm.phone,
-      email: userForm.email
+      email: userForm.email,
+      departmentCode: userForm.departmentCode,
+      titleCode: userForm.titleCode
     })
     ElMessage.success(res.msg || '个人信息修改成功')
     // 重新获取最新信息

@@ -36,3 +36,39 @@ npm run dev
 ```sh
 npm run build
 ```
+
+
+### 部署
+1. 
+2. D:\work\tool\nginx-1.20.2
+3. cd /d D:\nginx-1.20.2
+4. start nginx.exe
+5. nginx -s quit
+6. nginx -s reload
+7. nginx -v
+8. nginx -t
+3. config 配置
+   
+4. 数据库部署
+   4.1 数据库配置my.ini
+      [mysqld]
+       port=3306
+       basedir=D:\mysql-8.0.44-winx64
+       datadir=D:\mysql-8.0.44-winx64\data
+       max_connections=200
+       character-set-server=utf8mb4
+       default-storage-engine=INNODB
+
+       [mysql]
+       default-character-set=utf8mb4
+   4.2 初始化数据库
+      # 初始化（生成临时密码，注意记录！）
+      mysqld --initialize --console
+      # 安装服务（服务名可自定义，如MySQL）
+      mysqld --install MySQL
+      # 启动服务
+      net start MySQL
+      # 修改root密码（替换临时密码和新密码）
+      mysql -u root -p
+      ALTER USER 'root'@'localhost' IDENTIFIED BY '新密码';
+      FLUSH PRIVILEGES;

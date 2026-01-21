@@ -36,7 +36,7 @@ const routes = [
             { path: 'report/manage', name: 'ReportManage', component: ReportManage, meta: { title: '报告管理' } },
             { path: 'user/center', name: 'UserCenter', component: UserCenter, meta: { title: '个人中心' }},
             { path: 'sys/user', name: 'SysUser', component: SysUser, meta: { title: '用户管理' } },
-            { path: 'sys/role', name: 'SysRole', component: SysRole, meta: { title: '角色管理' } },
+            // { path: 'sys/role', name: 'SysRole', component: SysRole, meta: { title: '角色管理' } },
             { path: 'sys/oper/log', name: 'SysOperLog', component: SysOperLog, meta: { title: '操作日志' } }
         ]
     }
