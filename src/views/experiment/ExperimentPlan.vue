@@ -228,6 +228,7 @@ const experimentForm = reactive({
   modelInfo: '',
   experimentDesc: '',
   researchIds: [],
+  ownerId : ''
 })
 
 // 详情表单
@@ -277,6 +278,8 @@ const getExperimentList = async () => {
 const getUserList = async () => {
   try {
     const res = await request.get('/sys/user/list', )
+    // 过滤掉自己
+    res.data = res.data.filter(item => item.id !== experimentForm.ownerId)
     userList.value = res.data
   } catch (e) {
     ElMessage.error('获取用户列表失败：' + (e.msg || e.message))
@@ -325,6 +328,8 @@ const openEditDialog = (row) => {
   experimentForm.researchIds = Array.isArray(row.researchIds)
       ? row.researchIds
       : []
+  experimentForm.ownerId = row.ownerId
+  getUserList()
   dialogVisible.value = true
 }
 
@@ -340,6 +345,7 @@ const viewExperimentDetail = (row) => {
   detailForm.researchIds = Array.isArray(row.researchIds)
       ? row.researchIds
       : []
+  getUserList()
   detailVisible.value = true
 }
 
