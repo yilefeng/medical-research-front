@@ -407,7 +407,7 @@ const loadAndRenderPdf = async (pdfUrl) => {
     // v5.x getDocument 配置（新增兼容项）
     const pdfInstance = await pdfjsLib.getDocument({
       data: pdfData,
-      cMapUrl,
+      cMapUrl: '/cmaps/',
       cMapPacked: true,
       disableWorker: false,
       maxImageSize: Infinity,
