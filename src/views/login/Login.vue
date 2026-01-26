@@ -32,7 +32,7 @@
               @click="handleLogin"
               class="login-btn"
               :loading="isLoading"
-              :disabled="isLoading"
+              :disabled="isLoading || !isFormValid"
           >
             登录
           </el-button>
@@ -43,7 +43,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, nextTick } from 'vue'
+import { ref, reactive, nextTick, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { login } from '@/api/login'
@@ -53,6 +53,14 @@ import { aesEncrypt, aesDecrypt } from '@/utils/aes'
 const router = useRouter()
 const loginFormRef = ref(null)
 const usernameInputRef = ref(null)
+
+
+const isFormValid = computed(() => {
+  return loginForm.username.trim() !== '' &&
+      loginForm.password.trim() !== '' &&
+      loginForm.username.length >= 2 &&
+      loginForm.password.length >= 6
+})
 
 // 登录表单
 const loginForm = reactive({
